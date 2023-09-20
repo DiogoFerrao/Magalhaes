@@ -1,0 +1,23 @@
+{
+	"data_dir": "/media/magalhaes/sound/spectograms",
+	"dataaug": false,
+	"pretrained": true,
+	"scheduler": true,
+	"model": "yolo",
+	"batch_size": 64,
+	"num_workers": 8,
+	"epochs": 200,
+	"lr": 1e-4,
+    "weight_decay": 1e-5,
+    "num_folds": 1,
+    "checkpoint_dir": "/media/magalhaes/sound/checkpoints",
+    "checkpoint": "",
+	"num_classes": 8,
+	"names": "./data/schreder.names",
+	"device": "cuda:0",
+	"train_split": "/media/magalhaes/sound/spectograms/sound_1684340863",
+	"test_split": "/media/magalhaes/sound/spectograms/sound_1684340863_split1.pkl",
+	"split": 2,
+	"full_train": false,
+	"precomputed_spec": true
+}

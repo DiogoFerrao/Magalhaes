@@ -1,0 +1,9 @@
+# train and val datasets (image directory or *.txt file with image paths)
+train: /media/magalhaes/vision/datasets/vision_1684402450_split_2.txt
+val: /media/magalhaes/vision/datasets/vision_1684402450_split_1.txt
+
+# number of classes
+nc: 8
+
+# class names
+names: ['person', 'bicycle', 'car', 'motorcycle',  'emergency_vehicle', 'bus', 'other', 'truck']

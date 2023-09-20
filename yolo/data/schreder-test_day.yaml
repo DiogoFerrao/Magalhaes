@@ -1,0 +1,9 @@
+# train and val datasets (image directory or *.txt file with image paths)
+train:
+val: /media/magalhaes/schreder/day_test_set/schreder_day.txt
+
+# number of classes
+nc: 8
+
+# class names
+names: ['person', 'bicycle', 'car', 'motorcycle',  'emergency_vehicle', 'bus', 'other', 'truck']

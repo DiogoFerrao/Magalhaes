@@ -1,0 +1,20 @@
+# COCO 2017 dataset http://cocodataset.org
+
+# train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
+train:
+test: /media/magalhaes/vision/datasets/vision_test_set.txt
+val: /media/magalhaes/vision/datasets/vision_test_set.txt
+
+# number of classes
+nc: 80
+
+# class names
+names: [ 'person', 'bicycle', 'car', 'motorcycle', 'other', 'bus', 'other', 'truck', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other',
+         'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other', 'other'
+         ]
