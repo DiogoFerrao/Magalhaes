@@ -571,8 +571,10 @@ if __name__ == "__main__":
 
     device = select_device(args.device)
 
+    exp_name = args.exp_name if args.exp_name is not None else params.exp_name
+
     args.save_dir = Path(
-        increment_path(Path(args.project) / args.exp_name, exist_ok=True)
+        increment_path(Path(args.project) / exp_name, exist_ok=True)
     )
     os.makedirs(args.save_dir, exist_ok=True)
 
@@ -693,7 +695,7 @@ if __name__ == "__main__":
         project="Vision",
         group="yolov7",
         job_type="distil",
-        name=args.exp_name,
+        name=exp_name,
     )
 
     train_and_test(

@@ -121,7 +121,7 @@ class LogMelSpectrogramExtractorModel(nn.Module):
         )
 
         self.resize_transform = torchvision.transforms.Resize(
-            (self.n_mels, self.length)
+            (self.n_mels, self.length), antialias=None
         )
 
         n_fft = int(self.sample_rate / self.duration)
@@ -186,7 +186,7 @@ class LogMelSpectrogramExtractorModel(nn.Module):
         return spectgrms
 
 
-class WaveformAugmentations:
+class PitchShift:
     def __init__(self, sample_rate: int, device="cpu"):
         self.sample_rate = sample_rate
         self.device = device

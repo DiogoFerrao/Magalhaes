@@ -240,13 +240,15 @@ if __name__ == "__main__":
     #     params.num_workers,
     # )
 
+    exp_name = args.exp_name if args.exp_name is not None else params.exp_name
+
     wandb.init(
         config=params,
         resume="allow",
         project="Audio",
         group="rethink",
         job_type="distil",
-        name=args.exp_name,
+        name=exp_name,
     )
 
     model = create_model(params.model, params.num_classes, None, params.device)

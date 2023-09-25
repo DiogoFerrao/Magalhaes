@@ -167,3 +167,4 @@ wandb/
 runs/
 
 inference/
+rethink/sound_ablation_configs/*.json

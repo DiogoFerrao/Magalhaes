@@ -18,7 +18,9 @@ import rethink.utils as utils
 import rethink.evaluate as evaluate
 from rethink.preprocess import LogMelSpectrogramExtractorModel
 from rethink.models import create_model, ModelEma
-from rethink.dataset import create_dataloader, Roll
+from rethink.dataset import create_dataloader, Roll, create_raw_dataloader
+
+from audiomentations import PitchShift, AirAbsorption, ClippingDistortion, Gain, AddGaussianNoise, TimeStretch, LowPassFilter, Compose
 
 
 def train(
@@ -34,6 +36,7 @@ def train(
     model.train()
     loss_avg = utils.RunningAverage()
 
+    # TODO dont hardcode this
     spec_aug = T.Compose(
         [
             Roll((0, 0, 1), (0, 1, 2), 0, 250),
@@ -54,6 +57,8 @@ def train(
                 target = data[1].squeeze(1).to(device)
 
             if extractor is not None:
+                #TODO waveform augmentations need to be applied here
+                
                 inputs = extractor(inputs)
                 if teacher_inputs is not None:
                     teacher_inputs = extractor(teacher_inputs)
@@ -184,26 +189,60 @@ if __name__ == "__main__":
     params = utils.Params(args.config_path)
     device = torch.device(params.device if torch.cuda.is_available() else "cpu")
 
+    exp_name = args.exp_name if args.exp_name is not None else params.exp_name
+
     wandb.init(
         config=params,
         resume="allow",
         project="Audio",
         group="rethink",
         job_type="train",
-        name=args.exp_name,
+        name=exp_name,
     )
 
-    train_spec_transforms = T.Compose(
-        [
-            Roll((0, 0, 1), (0, 1, 2), 0, 250),
-            TA_T.FrequencyMasking(freq_mask_param=20, iid_masks=True),
-            TA_T.TimeMasking(time_mask_param=20, iid_masks=True),
-        ]
-    )
-    train_waveform_transforms = None  # WaveformAugmentations()
+    spec_transforms_list = []
+
+    # Read the parameters for spec_transforms
+    if params.spec_transforms:
+        for transform in params.spec_transforms:
+            if transform == "Roll":
+                spec_transforms_list.append(Roll((0, 0, 1), (0, 1, 2), 0, 250))
+            elif transform == "FreqMasking":
+                spec_transforms_list.append(
+                    TA_T.FrequencyMasking(freq_mask_param=20, iid_masks=True)
+                )
+            elif transform == "TimeMasking":
+                spec_transforms_list.append(
+                    TA_T.TimeMasking(time_mask_param=20, iid_masks=True)
+                )                
+
+    train_spec_transforms = T.Compose(spec_transforms_list)
+
+    train_waveform_transforms = []
+    
+    if params.waveform_transforms:
+        for transform in params.waveform_transforms:
+            if transform == "PitchShift":
+                train_waveform_transforms.append(PitchShift(min_semitones=-4, max_semitones=4, p=0.5))
+            elif transform == "AirAbsorption":
+                train_waveform_transforms.append(AirAbsorption(min_distance=10.0, max_distance=50.0, p=0.5))
+            elif transform == "ClippingDistortion":
+                train_waveform_transforms.append(ClippingDistortion(min_percentile_threshold=0, max_percentile_threshold=40, p=0.5))
+            elif transform == "Gain":
+                train_waveform_transforms.append(Gain(min_gain_db=-15, max_gain_db=15, p=0.5))
+            elif transform == "AddGaussianNoise":
+                train_waveform_transforms.append(AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.5))
+            elif transform == "TimeStretch":
+                train_waveform_transforms.append(TimeStretch(min_rate=0.8, max_rate=1.25, p=0.5))
+            elif transform == "LowPassFilter":
+                train_waveform_transforms.append(LowPassFilter(min_cutoff_freq=150.0, max_cutoff_freq=7500.0, p=0.5))
+
+    train_waveform_transforms = Compose(train_waveform_transforms)
+
+
     test_spec_transforms = T.Compose([])
 
-    if params.precomputed_spec:
+    if params.precomputed_spec or params.from_waveform:
         extractor = None
     else:
         extractor = LogMelSpectrogramExtractorModel(
@@ -222,43 +261,100 @@ if __name__ == "__main__":
     for split, train_indexes in enumerate(
         permutations(folds_indexes, params.num_folds - 1)
     ):
+        test_indexes = [i for i in folds_indexes if i not in train_indexes]
+
         if params.full_train:
             train_split = [f"{params.split_base}_split{i+1}.pkl" for i in train_indexes]
             test_split = [f"{params.split_base}_split{train_indexes[-1]+1}.pkl"]
         else:
-            test_indexes = [i for i in folds_indexes if i not in train_indexes]
             train_split = [f"{params.split_base}_split{i+1}.pkl" for i in train_indexes]
             test_split = [f"{params.split_base}_split{i+1}.pkl" for i in test_indexes]
-        train_loader = create_dataloader(
-            train_split,
-            params.batch_size,
-            params.num_workers,
-            spectrogram_transforms=train_spec_transforms,
-            waveform_transforms=train_waveform_transforms,
-        )
-        val_loader = create_dataloader(
-            test_split,
-            params.batch_size,
-            params.num_workers,
-            spectrogram_transforms=test_spec_transforms,
-        )
-        schreder_val_loader = create_dataloader(
-            test_split,
-            params.batch_size,
-            params.num_workers,
-            spectrogram_transforms=test_spec_transforms,
-            filter_datasets=[
-                "22_9_2022",
-                "16_12_2022",
-                "18_12_2022",
-                "21_12_2022",
-                "15_12_2022",
-                "27_01_2023",
-                "20_03_2023",
-                "11_04_2023",
-                "13_04_2023",
-            ],
-        )
+        
+        if hasattr(params, 'from_waveform') and params.from_waveform:
+            print("Loading from waveform")
+
+            # Load the dataset
+            dataset_df = pd.read_csv(params.dataset_csv)
+
+            # Filter the dataset by the splits, using the split column which is "splitX"
+            train_split_names = [f"split{i+1}" for i in train_indexes]
+            train_df = dataset_df[dataset_df["split"].isin(train_split_names)]
+            test_split_names = [f"split{i+1}" for i in test_indexes]
+            test_df = dataset_df[dataset_df["split"].isin(test_split_names)]
+
+            names = ["person","bicycle","car","motorcycle","siren","bus","truck"]
+
+            train_loader = create_raw_dataloader(
+                train_df,
+                names,
+                params.sample_rate,
+                10,
+                params.batch_size,
+                params.num_workers,
+                waveform_transforms=train_waveform_transforms,
+                spectrogram_transforms=train_spec_transforms,
+            )
+            val_loader = create_raw_dataloader(
+                test_df,
+                names,
+                params.sample_rate,
+                10,
+                params.batch_size,
+                params.num_workers,
+                spectrogram_transforms=test_spec_transforms,
+            )
+            schreder_val_loader = create_raw_dataloader(
+                test_df,
+                names,
+                params.sample_rate,
+                10,
+                params.batch_size,
+                params.num_workers,
+                spectrogram_transforms=test_spec_transforms,
+                filter_datasets=[
+                    "22_9_2022",
+                    "16_12_2022",
+                    "18_12_2022",
+                    "21_12_2022",
+                    "15_12_2022",
+                    "27_01_2023",
+                    "20_03_2023",
+                    "11_04_2023",
+                    "13_04_2023",
+                ],
+            )
+        else:
+            train_loader = create_dataloader(
+                train_split,
+                params.batch_size,
+                params.num_workers,
+                spectrogram_transforms=train_spec_transforms,
+                waveform_transforms=train_waveform_transforms,
+            )
+            val_loader = create_dataloader(
+                test_split,
+                params.batch_size,
+                params.num_workers,
+                spectrogram_transforms=test_spec_transforms,
+            )
+            schreder_val_loader = create_dataloader(
+                test_split,
+                params.batch_size,
+                params.num_workers,
+                spectrogram_transforms=test_spec_transforms,
+                filter_datasets=[
+                    "22_9_2022",
+                    "16_12_2022",
+                    "18_12_2022",
+                    "21_12_2022",
+                    "15_12_2022",
+                    "27_01_2023",
+                    "20_03_2023",
+                    "11_04_2023",
+                    "13_04_2023",
+                ],
+            )
+
 
         model = create_model(
             params.model,
@@ -359,7 +455,7 @@ if __name__ == "__main__":
     else:
         runs_tables = [log["Results Table"] for log in splits_final_evals]
         mean_res = pd.concat(runs_tables)
-        mean_res = mean_res.groupby(mean_res.index).mean()
+        mean_res = mean_res.groupby(mean_res.index).mean(numeric_only=True)
         mean_res.iloc[:, 0:3] = mean_res.iloc[:, 0:3].mul(params.num_folds)
         # sometimes the model doesn't find some classes
         # So, construct table from the most complete list of classes
@@ -375,7 +471,7 @@ if __name__ == "__main__":
             log["Schreder Results Table"] for log in splits_final_schreder_evals
         ]
         mean_res = pd.concat(runs_tables)
-        mean_res = mean_res.groupby(mean_res.index).mean()
+        mean_res = mean_res.groupby(mean_res.index).mean(numeric_only=True)
         mean_res.iloc[:, 0:3] = mean_res.iloc[:, 0:3].mul(params.num_folds)
         # sometimes the model doesn't find some classes
         # So, construct table from the most complete list of classes

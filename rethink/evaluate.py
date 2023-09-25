@@ -252,11 +252,11 @@ if __name__ == "__main__":
         conf_thres=params.conf_threshold,
     )
 
-    reliability_diagram_path, ece_path = create_calibration_plots(
-        logits, targets, list(id_to_class_name.values()), test_dir
-    )
-    logs_dict["Reliability Diagram"] = wandb.Image(reliability_diagram_path)
-    logs_dict["Expected Calibration Error Plot"] = wandb.Image(ece_path)
+    # reliability_diagram_path, ece_path = create_calibration_plots(
+    #     logits, targets, list(id_to_class_name.values()), test_dir
+    # )
+    # logs_dict["Reliability Diagram"] = wandb.Image(reliability_diagram_path)
+    # logs_dict["Expected Calibration Error Plot"] = wandb.Image(ece_path)
 
     wandb.log(logs_dict)
 

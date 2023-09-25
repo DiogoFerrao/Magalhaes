@@ -150,13 +150,15 @@ if __name__ == "__main__":
     params = utils.Params(args.config_path)
     device = torch.device(params.device if torch.cuda.is_available() else "cpu")
 
+    exp_name = args.exp_name if args.exp_name is not None else params.exp_name
+
     wandb.init(
         config=params,
         resume="allow",
         project="Audio",
         group="rethink",
         job_type="train",
-        name=args.exp_name,
+        name=exp_name,
     )
 
     train_spec_transforms = T.Compose(
