@@ -22,7 +22,7 @@
 	"device": "cuda:0",
 	"split_base": "/media/magalhaes/sound/spectograms/PitchShift/sound_1695725868",
 	"test_split": "/media/magalhaes/sound/spectograms/PitchShift/sound_1695725868_split2.pkl",
-	"dataset_csv": "/media/magalhaes/sound/spectograms/sound_1695725868.csv",
+	"dataset_csv": "/media/magalhaes/sound/datasets/sound_1695725868.csv",
 	"split": 1,
 	"full_train": false,
 	"precomputed_spec": true,

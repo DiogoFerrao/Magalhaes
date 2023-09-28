@@ -1,5 +1,5 @@
-from copy import deepcopy
 import json
+from copy import deepcopy
 
 
 # Define a function to create an augmentation entry with parameters
@@ -69,7 +69,7 @@ transform_parameters = {
         {"freq_mask_param": 100},
         {"freq_mask_param": 120},
     ]
-    
+
     # Add more transformations and their parameter variations as needed
 }
 

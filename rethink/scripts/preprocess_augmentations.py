@@ -1,9 +1,10 @@
-from rethink.preprocess import preprocess
 import argparse
 import os
 
+from rethink.preprocess import preprocess
+
 if __name__ == "__main__":
-    
+
     # Receive arguments from command line
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs_dir", type=str, default="./preprocessing_configs")
@@ -19,9 +20,13 @@ if __name__ == "__main__":
 
             output_dir = os.path.join(
                 "/media/magalhaes/sound/spectograms",
-                temp[2]+temp[3],
+                temp[2] + temp[3],
             )
             print(output_dir)
+            # If output dir exists and is not empty, skip
+            if os.path.isdir(output_dir) and os.listdir(output_dir):
+                print("Skipping...")
+                continue
             preprocess(
                 csv_file=args.csv_file,
                 augmentations_file=os.path.join(args.configs_dir, preprocessing_config),

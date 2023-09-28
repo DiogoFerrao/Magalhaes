@@ -1,37 +1,36 @@
-import os
 import argparse
+import os
 from itertools import permutations
 from typing import Optional
 
-import torch
-import torchvision.transforms as T
-import torchaudio.transforms as TA_T
-import torch.nn as nn
-import torch.nn.functional as F
-
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchaudio.transforms as TA_T
+import torchvision.transforms as T
+from audiomentations import PitchShift, AirAbsorption, ClippingDistortion, Gain, AddGaussianNoise, TimeStretch, \
+    LowPassFilter, Compose
 from tqdm import tqdm
-import wandb
 
-import rethink.utils as utils
 import rethink.evaluate as evaluate
-from rethink.preprocess import LogMelSpectrogramExtractorModel
-from rethink.models import create_model, ModelEma
+import rethink.utils as utils
+import wandb
 from rethink.dataset import create_dataloader, Roll, create_raw_dataloader
-
-from audiomentations import PitchShift, AirAbsorption, ClippingDistortion, Gain, AddGaussianNoise, TimeStretch, LowPassFilter, Compose
+from rethink.models import create_model, ModelEma
+from rethink.preprocess import LogMelSpectrogramExtractorModel
 
 
 def train(
-    model: nn.Module,
-    ema: Optional[ModelEma],
-    device: str,
-    data_loader,
-    optimizer,
-    loss_fn,
-    mixup=0.0,
-    extractor=None,
+        model: nn.Module,
+        ema: Optional[ModelEma],
+        device: str,
+        data_loader,
+        optimizer,
+        loss_fn,
+        mixup=0.0,
+        extractor=None,
 ):
     model.train()
     loss_avg = utils.RunningAverage()
@@ -57,8 +56,8 @@ def train(
                 target = data[1].squeeze(1).to(device)
 
             if extractor is not None:
-                #TODO waveform augmentations need to be applied here
-                
+                # TODO waveform augmentations need to be applied here
+
                 inputs = extractor(inputs)
                 if teacher_inputs is not None:
                     teacher_inputs = extractor(teacher_inputs)
@@ -71,12 +70,12 @@ def train(
                 rn_indices, lam = utils.mixup(N, mixup)
                 lam = lam.to(device)
                 inputs = inputs * lam.reshape(N, 1, 1, 1) + inputs[rn_indices] * (
-                    1.0 - lam.reshape(N, 1, 1, 1)
+                        1.0 - lam.reshape(N, 1, 1, 1)
                 )
 
                 outputs = model(inputs)
                 target = target * lam.reshape(N, 1) + target[rn_indices] * (
-                    1.0 - lam.reshape(N, 1)
+                        1.0 - lam.reshape(N, 1)
                 )
             else:
                 outputs = model(inputs)
@@ -114,18 +113,18 @@ def train(
 
 
 def train_and_evaluate(
-    model,
-    device,
-    train_loader,
-    val_loader,
-    optimizer,
-    loss_fn,
-    params,
-    split,
-    id_to_class_name,
-    mixup=0.0,
-    scheduler=None,
-    extractor=None,
+        model,
+        device,
+        train_loader,
+        val_loader,
+        optimizer,
+        loss_fn,
+        params,
+        split,
+        id_to_class_name,
+        mixup=0.0,
+        scheduler=None,
+        extractor=None,
 ):
     best = 0
     ema = ModelEma(model, device=device) if params.self_distillation else None
@@ -214,12 +213,12 @@ if __name__ == "__main__":
             elif transform == "TimeMasking":
                 spec_transforms_list.append(
                     TA_T.TimeMasking(time_mask_param=20, iid_masks=True)
-                )                
+                )
 
     train_spec_transforms = T.Compose(spec_transforms_list)
 
     train_waveform_transforms = []
-    
+
     if params.waveform_transforms:
         for transform in params.waveform_transforms:
             if transform == "PitchShift":
@@ -227,7 +226,8 @@ if __name__ == "__main__":
             elif transform == "AirAbsorption":
                 train_waveform_transforms.append(AirAbsorption(min_distance=10.0, max_distance=50.0, p=0.5))
             elif transform == "ClippingDistortion":
-                train_waveform_transforms.append(ClippingDistortion(min_percentile_threshold=0, max_percentile_threshold=40, p=0.5))
+                train_waveform_transforms.append(
+                    ClippingDistortion(min_percentile_threshold=0, max_percentile_threshold=40, p=0.5))
             elif transform == "Gain":
                 train_waveform_transforms.append(Gain(min_gain_db=-15, max_gain_db=15, p=0.5))
             elif transform == "AddGaussianNoise":
@@ -238,7 +238,6 @@ if __name__ == "__main__":
                 train_waveform_transforms.append(LowPassFilter(min_cutoff_freq=150.0, max_cutoff_freq=7500.0, p=0.5))
 
     train_waveform_transforms = Compose(train_waveform_transforms)
-
 
     test_spec_transforms = T.Compose([])
 
@@ -259,17 +258,17 @@ if __name__ == "__main__":
     splits_schreder_targets = []
     folds_indexes = list(range(params.num_folds))
     for split, train_indexes in enumerate(
-        permutations(folds_indexes, params.num_folds - 1)
+            permutations(folds_indexes, params.num_folds - 1)
     ):
         test_indexes = [i for i in folds_indexes if i not in train_indexes]
 
         if params.full_train:
-            train_split = [f"{params.split_base}_split{i+1}.pkl" for i in train_indexes]
-            test_split = [f"{params.split_base}_split{train_indexes[-1]+1}.pkl"]
+            train_split = [f"{params.split_base}_split{i + 1}.pkl" for i in train_indexes]
+            test_split = [f"{params.split_base}_split{train_indexes[-1] + 1}.pkl"]
         else:
-            train_split = [f"{params.split_base}_split{i+1}.pkl" for i in train_indexes]
-            test_split = [f"{params.split_base}_split{i+1}.pkl" for i in test_indexes]
-        
+            train_split = [f"{params.split_base}_split{i + 1}.pkl" for i in train_indexes]
+            test_split = [f"{params.split_base}_split{i + 1}.pkl" for i in test_indexes]
+
         if hasattr(params, 'from_waveform') and params.from_waveform:
             print("Loading from waveform")
 
@@ -277,12 +276,12 @@ if __name__ == "__main__":
             dataset_df = pd.read_csv(params.dataset_csv)
 
             # Filter the dataset by the splits, using the split column which is "splitX"
-            train_split_names = [f"split{i+1}" for i in train_indexes]
+            train_split_names = [f"split{i + 1}" for i in train_indexes]
             train_df = dataset_df[dataset_df["split"].isin(train_split_names)]
-            test_split_names = [f"split{i+1}" for i in test_indexes]
+            test_split_names = [f"split{i + 1}" for i in test_indexes]
             test_df = dataset_df[dataset_df["split"].isin(test_split_names)]
 
-            names = ["person","bicycle","car","motorcycle","siren","bus","truck"]
+            names = ["person", "bicycle", "car", "motorcycle", "siren", "bus", "truck"]
 
             train_loader = create_raw_dataloader(
                 train_df,
@@ -354,7 +353,6 @@ if __name__ == "__main__":
                     "13_04_2023",
                 ],
             )
-
 
         model = create_model(
             params.model,

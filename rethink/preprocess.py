@@ -5,28 +5,23 @@
 4- normalize the spectrogram
 5- save the spectrogram
 """
-import json
-import os
-from typing import Any, Optional
-import math
 import argparse
+import json
+import math
+import os
+import pickle as pkl
+from copy import deepcopy
+from typing import Optional
 
 import numpy as np
-import pickle as pkl
 import pandas as pd
-from tqdm import tqdm
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
+import torchaudio.transforms as TA_T
 import torchvision
-
-from rethink.stft.torchlibrosa import LibrosaMelSpectrogram
-from rethink.stft.effi import MelSTFT
-
-from copy import deepcopy
-
+import torchvision.transforms as T
 from audiomentations import (
     Compose,
     PitchShift as PitchShiftAug,
@@ -36,9 +31,10 @@ from audiomentations import (
     LowPassFilter,
     ClippingDistortion
 )
-import torchvision.transforms as T
+from tqdm import tqdm
 
-import torchaudio.transforms as TA_T
+from rethink.stft.effi import MelSTFT
+from rethink.stft.torchlibrosa import LibrosaMelSpectrogram
 
 
 class Loader:
@@ -70,9 +66,9 @@ class Trimmer:
         if self.duration and len(audio_time_series) > self.n_samples:
             n_excess_samples = len(audio_time_series) - self.n_samples
             audio_time_series = audio_time_series[
-                math.floor(n_excess_samples / 2) : len(audio_time_series)
-                - math.ceil(n_excess_samples / 2)
-            ]
+                                math.floor(n_excess_samples / 2): len(audio_time_series)
+                                                                  - math.ceil(n_excess_samples / 2)
+                                ]
         return audio_time_series
 
 
@@ -113,14 +109,14 @@ class LogMelSpectrogramExtractorModel(nn.Module):
     """
 
     def __init__(
-        self,
-        sample_rate: int,
-        n_mels: int,
-        length: int,
-        duration: int,
-        hop_sizes=[10, 25, 50],
-        window_sizes=[25, 50, 100],
-        export=False,
+            self,
+            sample_rate: int,
+            n_mels: int,
+            length: int,
+            duration: int,
+            hop_sizes=[10, 25, 50],
+            window_sizes=[25, 50, 100],
+            export=False,
     ):
         super().__init__()
         self.num_channels = 3
@@ -216,7 +212,7 @@ class PitchShift:
             .to(self.device)
             .squeeze(0)
         )
-    
+
 
 class Roll(object):
     def __init__(self, shift_dims: tuple, dims: tuple, min: int, max: int):
@@ -241,10 +237,11 @@ class MinMaxNormalizer:
     def __call__(self, spectgrms):
         for spectgrm in spectgrms:
             norm_spectrogram = (spectgrm - spectgrm.min()) / (
-                spectgrm.max() - spectgrm.min()
+                    spectgrm.max() - spectgrm.min()
             )
             spectgrm = norm_spectrogram * (self.max - self.min) + self.min
         return spectgrms
+
 
 class AugmentationProbWrapper:
     def __init__(self, augmentation_fn, prob):
@@ -255,18 +252,17 @@ class AugmentationProbWrapper:
         if np.random.rand() < self.prob:
             return self.augmentation_fn(signal)
         return signal
-        
+
 
 class Augmenter:
     """Augmenter is responsible for applying data augmentation"""
 
-    def __init__(self, augmentations_file: str, extractor,  sample_rate: int):
+    def __init__(self, augmentations_file: str, extractor, sample_rate: int):
         self.waveform_augs = self.parse_waveform_augs(augmentations_file)
         self.spectrogram_augs = self.parse_spectrogram_augs(augmentations_file)
         self.sample_rate = sample_rate
         self.extractor = extractor
         self.spectrogram_prob = 0.2
-
 
     def __call__(self, entry):
         signal = entry["waveform"]
@@ -289,14 +285,13 @@ class Augmenter:
         new_entry = deepcopy(entry)
         new_entry["waveform"] = augmented_signal
         new_entry["spectograms"] = augmented_spectgrms.cpu().numpy()
-        
 
         return new_entry
 
     def parse_waveform_augs(self, augmentations_file: str) -> Compose:
         with open(augmentations_file, "r") as f:
             config = json.load(f)
-        
+
             # Define a list of available audio augmentations
             waveform_augs = {
                 "PitchShift": PitchShiftAug,
@@ -312,7 +307,7 @@ class Augmenter:
             for aug_config in config["waveform_augmentations"]:
                 aug_name = aug_config["name"]
                 aug_params = aug_config["params"]
-                
+
                 if aug_name in waveform_augs:
                     augmentation_fn = waveform_augs[aug_name](**aug_params)
                     audio_augmentations.append(augmentation_fn)
@@ -320,8 +315,7 @@ class Augmenter:
                     print(f"Warning: Unknown audio augmentation '{aug_name}'")
         # Create an augmentation pipeline
         return Compose(audio_augmentations)
-    
-    
+
     def parse_spectrogram_augs(self, augmentations_file: str) -> T.Compose:
         with open(augmentations_file, "r") as f:
             config = json.load(f)
@@ -348,7 +342,6 @@ class Augmenter:
 
         # Create an augmentation pipeline
         return T.Compose(spec_augmentations)
-
 
 
 class Packager:
@@ -408,19 +401,19 @@ class Preprocessor:
 
 
 def preprocess(
-    csv_file,
-    output_dir="/media/magalhaes/sound/spectograms",
-    sample_rate=22050,
-    n_mels=128,
-    image_length=256,
-    duration=10.0,
-    effi_extractor=False,
-    export_extractor=False,
-    waveform_only=False,
-    labels_path="./data/schreder.names",
-    device="cuda",
-    augment=False,
-    augmentations_file="./config/augmentations.json",
+        csv_file,
+        output_dir="/media/magalhaes/sound/spectograms",
+        sample_rate=22050,
+        n_mels=128,
+        image_length=256,
+        duration=10.0,
+        effi_extractor=False,
+        export_extractor=False,
+        waveform_only=False,
+        labels_path="./data/schreder.names",
+        device="cuda",
+        augment=False,
+        augmentations_file="./config/augmentations.json",
 ):
     audios_df = pd.read_csv(csv_file, skipinitialspace=True)
 
@@ -481,7 +474,7 @@ def preprocess(
                 )
 
                 values.append(entry)
-                if augment :
+                if augment:
                     augmented_entry = augmenter(entry)
                     if augmented_entry is not None:
                         augmented_values.append(augmented_entry)
@@ -511,19 +504,25 @@ if __name__ == "__main__":
     )
     parser.add_argument("csv_file", type=str, help="csv file with the dataset")
     parser.add_argument("--sample_rate", type=int, default=22050, help="Sample rate ")
-    parser.add_argument("--n_mels", type=int, default=128, help="Number of mel filterbanks which defines the height of the spectrogram")
-    parser.add_argument("--image_length", type=int, default=256, help="Width of 3 channel spectrogram after preprocessing")
-    parser.add_argument("--duration", type=float, default=10.0, help="Duration of audios (larger audios will clipped and smaller will be padded)")
+    parser.add_argument("--n_mels", type=int, default=128,
+                        help="Number of mel filterbanks which defines the height of the spectrogram")
+    parser.add_argument("--image_length", type=int, default=256,
+                        help="Width of 3 channel spectrogram after preprocessing")
+    parser.add_argument("--duration", type=float, default=10.0,
+                        help="Duration of audios (larger audios will clipped and smaller will be padded)")
     parser.add_argument("--effi_extractor", action="store_true", help="Use mel spectrogram extractor from Effi")
-    parser.add_argument("--export_extractor", action="store_true", help="Use mel spectrogram extractor from torchlibrosa that is compatible with ONNX")
+    parser.add_argument("--export_extractor", action="store_true",
+                        help="Use mel spectrogram extractor from torchlibrosa that is compatible with ONNX")
     parser.add_argument("--waveform_only", action="store_true", help="Only save waveform")
-    parser.add_argument("--labels_path", type=str, default="./data/schreder.names", help="Path to text file with label names")
+    parser.add_argument("--labels_path", type=str, default="./data/schreder.names",
+                        help="Path to text file with label names")
     parser.add_argument(
         "--output_dir", type=str, default="/media/magalhaes/sound/spectograms", help="Path to output directory"
     )
     parser.add_argument("--device", type=str, default="cuda", help="Device to use")
     parser.add_argument("--augment", action="store_true", help="Wether to augment data")
-    parser.add_argument("--augmentations_file", type=str, default="./config/augmentations.json", help="Path to JSON file with augmentations")
+    parser.add_argument("--augmentations_file", type=str, default="./config/augmentations.json",
+                        help="Path to JSON file with augmentations")
 
     args = parser.parse_args()
     # fmt: on

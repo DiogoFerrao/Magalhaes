@@ -1,14 +1,14 @@
-import shutil
 import json
-import os
 import math
+import os
+import shutil
 
+import matplotlib.pyplot as plt
+import ml_insights as mli
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions.beta import Beta
-import ml_insights as mli
-import matplotlib.pyplot as plt
 
 
 class Params:
@@ -127,10 +127,10 @@ def linear_rampdown(rampdown_length, start=0, last_value=0):
             return 1.0
         elif epoch - start < rampdown_length:
             return (
-                last_value
-                + (1.0 - last_value)
-                * (rampdown_length - epoch + start)
-                / rampdown_length
+                    last_value
+                    + (1.0 - last_value)
+                    * (rampdown_length - epoch + start)
+                    / rampdown_length
             )
         else:
             return last_value
@@ -165,7 +165,7 @@ def mixstyle(x, p=0.4, alpha=0.4, eps=1e-6, mix_labels=False):
     f_mu_perm, f_sig_perm = f_mu[perm], f_sig[perm]  # shuffling
     mu_mix = f_mu * lmda + f_mu_perm * (1 - lmda)  # generate mixed mean
     sig_mix = f_sig * lmda + f_sig_perm * (
-        1 - lmda
+            1 - lmda
     )  # generate mixed standard deviation
     x = x_normed * sig_mix + mu_mix  # denormalize input using the mixed statistics
     if mix_labels:
@@ -174,11 +174,11 @@ def mixstyle(x, p=0.4, alpha=0.4, eps=1e-6, mix_labels=False):
 
 
 def plot_reliability_diagram(
-    y_hat: np.ndarray,
-    y_target: np.ndarray,
-    num_classes: int,
-    class_names: list[str],
-    save_dir: str,
+        y_hat: np.ndarray,
+        y_target: np.ndarray,
+        num_classes: int,
+        class_names: list[str],
+        save_dir: str,
 ) -> str:
     assert len(class_names) == num_classes
     num_rows = math.ceil(num_classes / 3)
@@ -197,10 +197,10 @@ def plot_reliability_diagram(
 
 
 def compute_expected_calibration_error(
-    y_hat: np.ndarray,
-    y_target: np.ndarray,
-    num_classes: int,
-    n_bins=20,
+        y_hat: np.ndarray,
+        y_target: np.ndarray,
+        num_classes: int,
+        n_bins=20,
 ) -> list[float]:
     """This function computes the expected calibration error for each class.
     Based on: https://medium.com/@wolframalphav1.0/evaluate-the-performance-of-a-model-in-high-risk-applications-using-expected-calibration-error-and-dbc392c68318
@@ -227,7 +227,7 @@ def compute_expected_calibration_error(
         binids = np.digitize(y_prob_max, bins) - 1
 
         y_correct_classified = (
-            np.argmax(y_true, axis=-1) == np.argmax(y_prob, axis=-1)
+                np.argmax(y_true, axis=-1) == np.argmax(y_prob, axis=-1)
         ).astype(int)
 
         bin_sums = np.bincount(binids, weights=y_prob_max, minlength=len(bins))
@@ -245,8 +245,8 @@ def compute_expected_calibration_error(
         prob_pred = bin_sums[nonzero] / bin_total[nonzero]
 
         expected_caliberation_error = (
-            np.sum(bin_total[nonzero] * np.abs(prob_true - prob_pred))
-            / bin_total[nonzero].sum()
+                np.sum(bin_total[nonzero] * np.abs(prob_true - prob_pred))
+                / bin_total[nonzero].sum()
         )
         # overconfidence_error = np.sum(
         #     bin_total[nonzero]

@@ -1,13 +1,11 @@
+import pickle
 from typing import Optional, Callable, Union
 
 import numpy as np
 import pandas as pd
-import pickle
-
-import torch.utils.data as tdata
 import torch
+import torch.utils.data as tdata
 import torchaudio
-
 from audiomentations import (
     AddBackgroundNoise,
     AddGaussianSNR,
@@ -88,12 +86,12 @@ class AugmentedMelSpectrogram(object):
 
 class AudioDataset(tdata.Dataset):
     def __init__(
-        self,
-        pkl_dirs,
-        image_size=(128, 250),
-        waveform_transforms=None,
-        spectrogram_transforms=None,
-        filter_datasets=[],
+            self,
+            pkl_dirs,
+            image_size=(128, 250),
+            waveform_transforms=None,
+            spectrogram_transforms=None,
+            filter_datasets=[],
     ):
         if isinstance(pkl_dirs, str):
             pkl_dirs = [pkl_dirs]
@@ -150,17 +148,18 @@ class AudioDataset(tdata.Dataset):
 
         return (spectrogram, target)
 
+
 class RawAudioDataset(tdata.Dataset):
     def __init__(
-        self,
-        dataset_df: pd.DataFrame,
-        names: list[str],
-        sample_rate: int,
-        duration: int,
-        extractor: LogMelSpectrogramExtractorModel,
-        waveform_transforms: Optional[Callable],
-        spectrogram_transforms: Optional[Callable],
-        filter_datasets=[],
+            self,
+            dataset_df: pd.DataFrame,
+            names: list[str],
+            sample_rate: int,
+            duration: int,
+            extractor: LogMelSpectrogramExtractorModel,
+            waveform_transforms: Optional[Callable],
+            spectrogram_transforms: Optional[Callable],
+            filter_datasets=[],
     ):
 
         paths = []
@@ -169,7 +168,7 @@ class RawAudioDataset(tdata.Dataset):
         n_targets = len(names)
         n_audios = len(dataset_df)
 
-        #Print the transforms for debugging
+        # Print the transforms for debugging
         print("Waveform transforms:")
         print(waveform_transforms)
 
@@ -180,7 +179,6 @@ class RawAudioDataset(tdata.Dataset):
         padder = Padder(sample_rate, duration)
         # TODO: definitely don't hardcode this
         loader = Loader(sample_rate, device="cuda:0")
-
 
         waveforms = torch.zeros((n_audios, sample_rate * duration))
         self.targets = torch.zeros((n_audios, n_targets))
@@ -195,7 +193,7 @@ class RawAudioDataset(tdata.Dataset):
         for i, row in enumerate(dataset_df.itertuples()):
             if i % 1000 == 0:
                 print(i)
-            
+
             # NEW VERSION ----------------------
             # signal = loader(row.audio_filename)
             # signal = trimmer(signal)
@@ -211,7 +209,7 @@ class RawAudioDataset(tdata.Dataset):
             # for j, name in enumerate(names):
             #     # Read the columns with the names of the labels, access with row.value_of_name
             #     target[j] = 1 if getattr(row, name) == 1 else 0
-            
+
             # self.spectrograms[i] = spectrogram
             # self.targets[i] = target
 
@@ -235,7 +233,6 @@ class RawAudioDataset(tdata.Dataset):
             waveform = torchaudio.functional.resample(
                 waveform, orig_freq=source_sr, new_freq=sample_rate
             )
-    
 
             # (1,L) -> (L)
             waveform = waveform.squeeze(0)
@@ -246,14 +243,14 @@ class RawAudioDataset(tdata.Dataset):
             if len(filter_datasets) != 0:
                 if row.dataset not in filter_datasets:
                     continue
-            
+
             waveform = waveform.cpu()
 
             waveforms[i] = waveform
 
             if waveform_transforms is not None:
-                waveform = waveform_transforms(samples= waveform.numpy(), sample_rate=sample_rate)
-            
+                waveform = waveform_transforms(samples=waveform.numpy(), sample_rate=sample_rate)
+
             waveform = torch.Tensor(waveform).to("cuda:0")
 
             spectrogram = extractor(waveform)
@@ -286,13 +283,13 @@ class RawAudioDataset(tdata.Dataset):
 
 class DistilAudioDataset(tdata.Dataset):
     def __init__(
-        self,
-        dataset_csv: str,
-        teacher_logits_path: Optional[str],
-        names: list[str],
-        sample_rate: float,
-        duration: float,
-        waveform_transforms: Optional[Callable],
+            self,
+            dataset_csv: str,
+            teacher_logits_path: Optional[str],
+            names: list[str],
+            sample_rate: float,
+            duration: float,
+            waveform_transforms: Optional[Callable],
     ):
         dataset_df = pd.read_csv(dataset_csv)
         paths = []
@@ -434,9 +431,9 @@ def compute_dataset_stats(dataset_path):
 
                 mean[i] = seen / (seen + N) * tmp_mean + N / (seen + N) * new_mean
                 std[i] = (
-                    seen / (seen + N) * std[i] ** 2
-                    + N / (seen + N) * new_std**2
-                    + seen * N / (seen + N) ** 2 * (tmp_mean - new_std) ** 2
+                        seen / (seen + N) * std[i] ** 2
+                        + N / (seen + N) * new_std ** 2
+                        + seen * N / (seen + N) ** 2 * (tmp_mean - new_std) ** 2
                 )
                 std[i] = np.sqrt(std[i])
         seen += N
@@ -445,15 +442,15 @@ def compute_dataset_stats(dataset_path):
 
 
 def create_distil_dataloader(
-    dataset_csv: str,
-    teacher_logits_path: str,
-    names,
-    sample_rate,
-    duration,
-    batch_size: int,
-    num_workers: int,
-    waveform_transforms=None,
-    shuffle=True,
+        dataset_csv: str,
+        teacher_logits_path: str,
+        names,
+        sample_rate,
+        duration,
+        batch_size: int,
+        num_workers: int,
+        waveform_transforms=None,
+        shuffle=True,
 ) -> tdata.DataLoader:
     dataset = DistilAudioDataset(
         dataset_csv,
@@ -474,12 +471,12 @@ def create_distil_dataloader(
 
 
 def create_teacher_compute_dataloader(
-    dataset_csv: str,
-    names: list[str],
-    sample_rate: int,
-    duration: int,
-    batch_size: int,
-    num_workers: int,
+        dataset_csv: str,
+        names: list[str],
+        sample_rate: int,
+        duration: int,
+        batch_size: int,
+        num_workers: int,
 ) -> tdata.DataLoader:
     dataset = TeacherAudioDataset(dataset_csv, names, sample_rate, duration)
     dataloader = tdata.DataLoader(
@@ -489,13 +486,13 @@ def create_teacher_compute_dataloader(
 
 
 def create_dataloader(
-    pkl_dir: Union[str, list[str]],
-    batch_size: int,
-    num_workers: int,
-    waveform_transforms=None,
-    spectrogram_transforms=None,
-    filter_datasets=[],
-    device="cpu",
+        pkl_dir: Union[str, list[str]],
+        batch_size: int,
+        num_workers: int,
+        waveform_transforms=None,
+        spectrogram_transforms=None,
+        filter_datasets=[],
+        device="cpu",
 ) -> tdata.DataLoader:
     dataset = AudioDataset(
         pkl_dir,
@@ -508,16 +505,17 @@ def create_dataloader(
     )
     return dataloader
 
+
 def create_raw_dataloader(
-    dataset_df: pd.DataFrame,
-    names: list[str],
-    sample_rate: int,
-    duration: int,
-    batch_size: int,
-    num_workers: int,
-    waveform_transforms=None,
-    spectrogram_transforms=None,
-    filter_datasets=[],
+        dataset_df: pd.DataFrame,
+        names: list[str],
+        sample_rate: int,
+        duration: int,
+        batch_size: int,
+        num_workers: int,
+        waveform_transforms=None,
+        spectrogram_transforms=None,
+        filter_datasets=[],
 ) -> tdata.DataLoader:
     extractor = LogMelSpectrogramExtractorModel(
         sample_rate=sample_rate, n_mels=128, length=250, duration=10, export=False

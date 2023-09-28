@@ -1,6 +1,6 @@
-import json
 import argparse
-from itertools import chain, combinations
+import json
+from itertools import combinations
 
 # List of available transformations (you can add more if needed)
 spec_transforms = ["Roll", "TimeMasking", "FreqMasking"]
@@ -72,7 +72,7 @@ def generate_configurations(combinations_list, user_config):
 
         # Create a new configuration JSON file
         with open(
-            f"{experiment_name_prefix}_{idx + 1}_config.json", "w"
+                f"{experiment_name_prefix}_{idx + 1}_config.json", "w"
         ) as config_file:
             json.dump(config, config_file, indent=4)
 
