@@ -168,3 +168,4 @@ runs/
 
 inference/
 rethink/sound_ablation_configs/*.json
+rethink/preprocessing_configs/*.json

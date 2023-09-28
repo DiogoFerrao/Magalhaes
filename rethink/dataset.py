@@ -14,6 +14,7 @@ from audiomentations import (
 )
 
 from rethink.preprocess import (
+    Loader,
     Trimmer,
     Padder,
     LogMelSpectrogramExtractorModel,
@@ -161,39 +162,68 @@ class RawAudioDataset(tdata.Dataset):
         spectrogram_transforms: Optional[Callable],
         filter_datasets=[],
     ):
-        self.dataset_df = dataset_df
+
         paths = []
         self.targets = torch.tensor([])
-        self.waveforms = torch.tensor([])
+
         n_targets = len(names)
         n_audios = len(dataset_df)
 
-        self.extractor = extractor
-        self.waveform_transforms = waveform_transforms
-        self.spec_transforms = spectrogram_transforms
-        self.sample_rate = sample_rate
         #Print the transforms for debugging
         print("Waveform transforms:")
-        print(self.waveform_transforms)
+        print(waveform_transforms)
 
         print("Spectrogram transforms:")
-        print(self.spec_transforms)
-
-        self.filter_datasets = filter_datasets
+        print(spectrogram_transforms)
 
         trimmer = Trimmer(sample_rate, duration)
         padder = Padder(sample_rate, duration)
+        # TODO: definitely don't hardcode this
+        loader = Loader(sample_rate, device="cuda:0")
 
-        self.waveforms = torch.zeros((n_audios, sample_rate * duration))
-        # self.targets = torch.zeros((n_audios, n_targets))
-        self.targets = torch.tensor(dataset_df[names].values, dtype=torch.float32)
+
+        waveforms = torch.zeros((n_audios, sample_rate * duration))
+        self.targets = torch.zeros((n_audios, n_targets))
+        # self.targets = torch.tensor(dataset_df[names].values, dtype=torch.float32)
         # A spectrogram is shaped torch.Size([3, 128, 250])
         self.spectrograms = torch.zeros((n_audios, 3, 128, 250))
+
+        # TODO: definitely don't hardcode this
+        extractor = extractor.to("cuda:0")
 
         print("Loading dataset to RAM")
         for i, row in enumerate(dataset_df.itertuples()):
             if i % 1000 == 0:
                 print(i)
+            
+            # NEW VERSION ----------------------
+            # signal = loader(row.audio_filename)
+            # signal = trimmer(signal)
+            # signal = padder(signal)
+
+            # # TODO: definitely don't hardcode this
+            # extractor = extractor.to("cuda:0")
+
+            # spectrogram = extractor(signal).cpu()
+
+            # # Set the target
+            # target = torch.zeros((n_targets))
+            # for j, name in enumerate(names):
+            #     # Read the columns with the names of the labels, access with row.value_of_name
+            #     target[j] = 1 if getattr(row, name) == 1 else 0
+            
+            # self.spectrograms[i] = spectrogram
+            # self.targets[i] = target
+
+            # testing_filename = "/media/magalhaes/ESC-50/audio/5-253534-A-26.wav"
+
+            # if (row.audio_filename == testing_filename):
+            #     print(f"Targets for {testing_filename}")
+            #     print(target)
+
+            # OLD VERSION ----------------------
+
+            # Load the dataset
             path = row.audio_filename
             paths.append(path)
 
@@ -205,6 +235,7 @@ class RawAudioDataset(tdata.Dataset):
             waveform = torchaudio.functional.resample(
                 waveform, orig_freq=source_sr, new_freq=sample_rate
             )
+    
 
             # (1,L) -> (L)
             waveform = waveform.squeeze(0)
@@ -212,28 +243,35 @@ class RawAudioDataset(tdata.Dataset):
             waveform = trimmer(waveform)
             waveform = padder(waveform)
 
-            if len(self.filter_datasets) != 0:
-                if row.dataset not in self.filter_datasets:
+            if len(filter_datasets) != 0:
+                if row.dataset not in filter_datasets:
                     continue
             
             waveform = waveform.cpu()
 
-            self.waveforms[i] = waveform
+            waveforms[i] = waveform
 
-            if self.waveform_transforms is not None:
-                waveform = self.waveform_transforms(samples= waveform.numpy(), sample_rate=self.sample_rate)
+            if waveform_transforms is not None:
+                waveform = waveform_transforms(samples= waveform.numpy(), sample_rate=sample_rate)
             
-            waveform = torch.Tensor(waveform)
+            waveform = torch.Tensor(waveform).to("cuda:0")
 
-            spectrogram = self.extractor(waveform)
+            spectrogram = extractor(waveform)
 
-            if self.spec_transforms is not None:
-                spectrogram = self.spec_transforms(spectrogram)
+            if spectrogram_transforms is not None:
+                spectrogram = spectrogram_transforms(spectrogram)
 
             self.spectrograms[i] = spectrogram.cpu()
 
+            # Set the target
+            target = torch.zeros((n_targets))
+            for j, name in enumerate(names):
+                # Read the columns with the names of the labels, access with row.value_of_name
+                target[j] = 1 if getattr(row, name) == 1 else 0
+            self.targets[i] = target
+
     def __len__(self):
-        return len(self.waveforms)
+        return len(self.spectrograms)
 
     def __getitem__(self, idx):
 
@@ -482,7 +520,7 @@ def create_raw_dataloader(
     filter_datasets=[],
 ) -> tdata.DataLoader:
     extractor = LogMelSpectrogramExtractorModel(
-        sample_rate=sample_rate, n_mels=128, length=250, duration=10
+        sample_rate=sample_rate, n_mels=128, length=250, duration=10, export=False
     )
     dataset = RawAudioDataset(
         dataset_df,

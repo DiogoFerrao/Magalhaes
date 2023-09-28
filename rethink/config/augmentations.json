@@ -1,0 +1,29 @@
+{
+    "waveform_augmentations" : [
+        {
+            "name" : "PitchShift",
+            "params" : {
+                "p" : 0.2,
+                "min_semitones" : -4.0,
+                "max_semitones" : 4.0
+            }
+        },
+        {
+            "name" : "AddGaussianNoise",
+            "params" : {
+                "p" : 0.2,
+                "min_amplitude" : 0.001,
+                "max_amplitude" : 0.015
+            }
+        },
+        {
+            "name": "AirAbsorption",
+            "params": {
+                "p": 0.2,
+                "min_distance": 10.0,
+                "max_distance": 50.0
+            }
+        }
+    ],
+    "spectrogram_augmentations" : []
+}

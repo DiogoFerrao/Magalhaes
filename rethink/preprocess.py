@@ -5,8 +5,9 @@
 4- normalize the spectrogram
 5- save the spectrogram
 """
+import json
 import os
-from typing import Optional
+from typing import Any, Optional
 import math
 import argparse
 
@@ -23,6 +24,21 @@ import torchvision
 
 from rethink.stft.torchlibrosa import LibrosaMelSpectrogram
 from rethink.stft.effi import MelSTFT
+
+from copy import deepcopy
+
+from audiomentations import (
+    Compose,
+    PitchShift as PitchShiftAug,
+    AddGaussianNoise,
+    AirAbsorption,
+    Gain,
+    LowPassFilter,
+    ClippingDistortion
+)
+import torchvision.transforms as T
+
+import torchaudio.transforms as TA_T
 
 
 class Loader:
@@ -200,6 +216,19 @@ class PitchShift:
             .to(self.device)
             .squeeze(0)
         )
+    
+
+class Roll(object):
+    def __init__(self, shift_dims: tuple, dims: tuple, min: int, max: int):
+        assert min < max
+        self.shift_dims = np.array(shift_dims)
+        self.dims = dims
+        self.min = min
+        self.max = max
+
+    def __call__(self, x: torch.Tensor):
+        multiplier = int(torch.rand(1).item() * self.max) + self.min
+        return x.roll(tuple(self.shift_dims * multiplier), self.dims)
 
 
 class MinMaxNormalizer:
@@ -217,6 +246,134 @@ class MinMaxNormalizer:
             spectgrm = norm_spectrogram * (self.max - self.min) + self.min
         return spectgrms
 
+class AugmentationProbWrapper:
+    def __init__(self, augmentation_fn, prob):
+        self.augmentation_fn = augmentation_fn
+        self.prob = prob
+
+    def __call__(self, signal):
+        if np.random.rand() < self.prob:
+            return self.augmentation_fn(signal)
+        return signal
+    
+class SpectrogramAugmenter:
+    def __init__(self, augmentations_file: str, sample_rate: int):
+        self.augmentations = self.parse_augmentations(augmentations_file)
+        self.sample_rate = sample_rate
+        self.spectrogram_prob = 0.2
+    
+    def __call__(self, entry):
+        spectgrms = entry["spectograms"]
+        # Convert spectrogram back to torch on cuda
+        spectgrms = torch.from_numpy(spectgrms).to("cuda")
+        augmented_spectgrms = self.augmentations(spectgrms)
+
+        # If signal was not augmented, return None
+        # Signal is a numpy array, so we can check if it is equal to the original signal
+        if np.array_equal(spectgrms, augmented_spectgrms):
+            return None
+
+        # If signal was augmented, return a new entry
+        new_entry = deepcopy(entry)
+
+        # Convert the spectrogram to numpy cpu
+        augmented_spectgrms = augmented_spectgrms.cpu().numpy()
+        new_entry["spectograms"] = augmented_spectgrms
+        return new_entry
+
+    def parse_augmentations(self, augmentations_file: str) -> T.Compose:
+        with open(augmentations_file, "r") as f:
+            config = json.load(f)
+
+            # Define a list of available audio augmentations
+            spec_augs = {
+                "Roll": Roll,
+                "TimeMasking": TA_T.TimeMasking,
+                "FreqMasking": TA_T.FrequencyMasking,
+            }
+
+            # Create a list of augmentation functions based on the configuration
+            spec_augmentations = []
+            for aug_config in config["spectrogram_augmentations"]:
+                aug_name = aug_config["name"]
+                aug_params = aug_config["params"]
+
+                if aug_name in spec_augs:
+                    augmentation_fn = spec_augs[aug_name](**aug_params)
+                    augmentation_fn = AugmentationProbWrapper(augmentation_fn, 0.2)
+                    spec_augmentations.append(augmentation_fn)
+                else:
+                    print(f"Warning: Unknown spec augmentation '{aug_name}'")
+
+        # Create an augmentation pipeline
+        return T.Compose(spec_augmentations)
+    
+
+class WaveformAugmenter:
+    """Augmenter is responsible for applying data augmentation"""
+
+    def __init__(self, augmentations_file: str, extractor,  sample_rate: int):
+        self.augmentations = self.parse_augmentations(augmentations_file)
+        self.sample_rate = sample_rate
+        self.extractor = extractor
+
+    def __call__(self, entry):
+        signal = entry["waveform"]
+        augmented_signal = self.augmentations(signal, sample_rate=self.sample_rate)
+
+        # If signal was not augmented, return None
+        # Signal is a numpy array, so we can check if it is equal to the original signal
+        if np.array_equal(signal, augmented_signal):
+            return None
+
+        # COnvert waveform to torch
+        augmented_signal = torch.from_numpy(augmented_signal).to("cuda")
+
+        # Convert the waveform to spectrogram
+        spectgrms = self.extractor(augmented_signal).cpu()
+
+
+        # If signal was augmented, return a new entry
+        new_entry = deepcopy(entry)
+        new_entry["waveform"] = augmented_signal
+        new_entry["spectograms"] = spectgrms
+        
+
+        return new_entry
+
+    def parse_augmentations(self, augmentations_file: str) -> Compose:
+        with open(augmentations_file, "r") as f:
+            config = json.load(f)
+        
+            # Define a list of available audio augmentations
+            waveform_augs = {
+                "PitchShift": PitchShiftAug,
+                "AddGaussianNoise": AddGaussianNoise,
+                "AirAbsorption": AirAbsorption,
+                "Gain": Gain,
+                "LowPassFilter": LowPassFilter,
+                "ClippingDistortion": ClippingDistortion,
+            }
+
+            # Create a list of augmentation functions based on the configuration
+            audio_augmentations = []
+            for aug_config in config["waveform_augmentations"]:
+                aug_name = aug_config["name"]
+                aug_params = aug_config["params"]
+                
+                if aug_name in waveform_augs:
+                    augmentation_fn = waveform_augs[aug_name](**aug_params)
+                    audio_augmentations.append(augmentation_fn)
+                else:
+                    print(f"Warning: Unknown audio augmentation '{aug_name}'")
+            
+
+        
+        # Create an augmentation pipeline
+        return Compose(audio_augmentations)
+
+
+
 
 class Packager:
     """Packager is responsible for packaging the information"""
@@ -227,17 +384,33 @@ class Packager:
 
     def package(self, signal, spectgrms, labels, dataset):
         entry = {}
-        if self.save_waveform:
-            entry["waveform"] = signal.cpu().numpy()
-        if self.save_spectogram:
-            entry["spectograms"] = np.array(spectgrms)
+
+        entry["waveform"] = signal.cpu().numpy()
+        entry["spectograms"] = np.array(spectgrms)
         entry["dataset"] = dataset
         entry["target"] = labels
         return entry
 
     def dump(self, output_path, output_name, data):
+        # If save_waveform is False, remove waveform from data
+        # if not self.save_waveform:
+        #     for entry in data:
+        #         del entry["waveform"]
+
+        # if not self.save_spectogram:
+        #     for entry in data:
+        #         del entry["spectograms"]
+
+        key_to_remove = "waveform"
+
+        # Using list comprehensions to remove the specified key from all dictionaries
+        list_of_dicts = [
+            {k: v for k, v in dictionary.items() if k != key_to_remove}
+            for dictionary in data
+        ]
+
         with open(os.path.join(output_path, output_name), "wb") as handler:
-            pkl.dump(data, handler, protocol=pkl.HIGHEST_PROTOCOL)
+            pkl.dump(list_of_dicts, handler, protocol=pkl.HIGHEST_PROTOCOL)
 
 
 class Preprocessor:
@@ -258,6 +431,106 @@ class Preprocessor:
         return self.packager.package(signal, spectgrms, labels, dataset)
 
 
+def preprocess(
+    csv_file,
+    output_dir="/media/magalhaes/sound/spectograms",
+    sample_rate=22050,
+    n_mels=128,
+    image_length=256,
+    duration=10.0,
+    effi_extractor=False,
+    export_extractor=False,
+    waveform_only=False,
+    labels_path="./data/schreder.names",
+    device="cuda",
+    augment=False,
+    augmentations_file="./config/augmentations.json",
+):
+    audios_df = pd.read_csv(csv_file, skipinitialspace=True)
+
+    dataset_name = os.path.basename(csv_file).split(".")[0]
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    label_to_id = {}
+    for i, label in enumerate(open(labels_path).readlines()):
+        label_to_id[label.strip()] = i
+
+    # Get number of splits and
+    splits_arr = list(audios_df["split"].unique())
+    audio_splits = [audios_df.loc[audios_df["split"] == i] for i in splits_arr]
+
+    loader = Loader(sample_rate=sample_rate, device=device)
+    trimmer = Trimmer(sample_rate, duration)
+    padder = Padder(sample_rate=sample_rate, duration=duration)
+
+    if effi_extractor:
+        extractor = MelSTFT(n_mels=n_mels, sr=sample_rate).to(device)
+    else:
+        extractor = LogMelSpectrogramExtractorModel(
+            sample_rate,
+            n_mels,
+            image_length,
+            duration,
+            export=export_extractor,
+        ).to(device)
+
+    packager = Packager(save_waveform=waveform_only, save_spectogram=not waveform_only)
+
+    preprocessor = Preprocessor(loader, trimmer, padder, extractor, packager)
+
+    # Augment data, TODO dont hardcode this
+    # augmentations = Compose(
+    #     [PitchShiftAug(p=0.2), AddGaussianNoise(p=0.2), AirAbsorption(p=0.2)]
+    # )
+    waveform_augmenter = WaveformAugmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
+    spectrogram_augmenter = SpectrogramAugmenter(augmentations_file, sample_rate)
+
+    for j, dataset_split in enumerate(audio_splits):
+        values = []
+        augmented_values = []
+        split_filename = f"{dataset_name}_{splits_arr[j]}.pkl"
+        print(f"Processing {split_filename}")
+        with tqdm(total=len(dataset_split)) as pbar:
+            for i, row in dataset_split.iterrows():
+                # Get labels
+                labels = [
+                    int(row[key])
+                    for key in audios_df.columns
+                    if key in label_to_id.keys()
+                ]
+
+                # Preprocess data
+                entry = preprocessor.preprocess(
+                    row["audio_filename"], labels, row["dataset"]
+                )
+
+                values.append(entry)
+                if augment :
+                    augmented_entry = waveform_augmenter(entry)
+                    if augmented_entry is not None:
+                        augmented_values.append(augmented_entry)
+                    augmented_entry = spectrogram_augmenter(entry)
+                    if augmented_entry is not None:
+                        augmented_values.append(augmented_entry)
+                pbar.update(1)
+
+        if augment:
+            print(f"Augmenting data, {len(augmented_values)} entries")
+            # Combine augmented and non augmented data
+            values.extend(augmented_values)
+
+            # Print original data size and augmented data size
+            print(f"Original data size: {len(values) - len(augmented_values)}")
+            print(f"Augmented data size: {len(augmented_values)}")
+            print(f"Total data size: {len(values)}")
+
+        print(f"Saved to {output_dir}")
+
+        # Save data
+        preprocessor.packager.dump(output_dir, split_filename, values)
+
+
 if __name__ == "__main__":
     # fmt: off
     parser = argparse.ArgumentParser(
@@ -276,58 +549,24 @@ if __name__ == "__main__":
         "--output_dir", type=str, default="/media/magalhaes/sound/spectograms", help="Path to output directory"
     )
     parser.add_argument("--device", type=str, default="cuda", help="Device to use")
+    parser.add_argument("--augment", action="store_true", help="Wether to augment data")
+    parser.add_argument("--augmentations_file", type=str, default="./config/augmentations.json", help="Path to JSON file with augmentations")
+
     args = parser.parse_args()
     # fmt: on
 
-    audios_df = pd.read_csv(args.csv_file, skipinitialspace=True)
-
-    dataset_name = os.path.basename(args.csv_file).split(".")[0]
-
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    label_to_id = {}
-    for i, label in enumerate(open(args.labels_path).readlines()):
-        label_to_id[label.strip()] = i
-
-    # Get number of splits and
-    splits_arr = list(audios_df["split"].unique())
-    audio_splits = [audios_df.loc[audios_df["split"] == i] for i in splits_arr]
-
-    loader = Loader(sample_rate=args.sample_rate, device=args.device)
-    trimmer = Trimmer(args.sample_rate, args.duration)
-    padder = Padder(sample_rate=args.sample_rate, duration=args.duration)
-
-    if args.effi_extractor:
-        extractor = MelSTFT(n_mels=args.n_mels, sr=args.sample_rate).to(args.device)
-    else:
-        extractor = LogMelSpectrogramExtractorModel(
-            args.sample_rate,
-            args.n_mels,
-            args.image_length,
-            args.duration,
-            export=args.export_extractor,
-        ).to(args.device)
-
-    packager = Packager(
-        save_waveform=args.waveform_only, save_spectogram=not args.waveform_only
+    preprocess(
+        csv_file=args.csv_file,
+        output_dir=args.output_dir,
+        sample_rate=args.sample_rate,
+        n_mels=args.n_mels,
+        image_length=args.image_length,
+        duration=args.duration,
+        effi_extractor=args.effi_extractor,
+        export_extractor=args.export_extractor,
+        waveform_only=args.waveform_only,
+        labels_path=args.labels_path,
+        device=args.device,
+        augment=args.augment,
+        augmentations_file=args.augmentations_file,
     )
-
-    preprocessor = Preprocessor(loader, trimmer, padder, extractor, packager)
-
-    for j, dataset_split in enumerate(audio_splits):
-        values = []
-        split_filename = f"{dataset_name}_{splits_arr[j]}.pkl"
-        print(f"Processing {split_filename}")
-        with tqdm(total=len(dataset_split)) as pbar:
-            for i, row in dataset_split.iterrows():
-                labels = [
-                    int(row[key])
-                    for key in audios_df.columns
-                    if key in label_to_id.keys()
-                ]
-                entry = preprocessor.preprocess(
-                    row["audio_filename"], labels, row["dataset"]
-                )
-                values.append(entry)
-                pbar.update(1)
-        preprocessor.packager.dump(args.output_dir, split_filename, values)

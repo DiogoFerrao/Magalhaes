@@ -11,12 +11,12 @@
 	"epochs": 300,
 	"lr": 1e-5,
     "weight_decay": 1e-3,
-	"mixup": 0.4,
+	"mixup": 0.0,
 	"self_distillation": false,
     "num_folds": 2,
 	"pretrained_weights": "/media/magalhaes/sound/pretrained/yolov7-tiny-finetuned.pt",
     "checkpoint_dir": "/media/cache/magalhaes/sound/checkpoints",
-	"checkpoint": "/media/cache/magalhaes/sound/checkpoints/testing_raw_audio_dataset_fm/model_best_1.pth",
+	"checkpoint": "/media/cache/magalhaes/sound/checkpoints/testing_raw_audio_PS_all_spec/model_best_1.pth",
 	"num_classes": 7,
 	"conf_threshold": 0.5,
 	"names": "./data/schreder.names",
@@ -28,6 +28,6 @@
 	"full_train": false,
 	"precomputed_spec": false,
 	"from_waveform": true,
-	"spec_transforms" : ["TimeMasking"],
+	"spec_transforms" : [],
 	"waveform_transforms" : []
 }
