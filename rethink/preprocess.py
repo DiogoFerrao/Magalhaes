@@ -255,33 +255,74 @@ class AugmentationProbWrapper:
         if np.random.rand() < self.prob:
             return self.augmentation_fn(signal)
         return signal
-    
-class SpectrogramAugmenter:
-    def __init__(self, augmentations_file: str, sample_rate: int):
-        self.augmentations = self.parse_augmentations(augmentations_file)
+        
+
+class Augmenter:
+    """Augmenter is responsible for applying data augmentation"""
+
+    def __init__(self, augmentations_file: str, extractor,  sample_rate: int):
+        self.waveform_augs = self.parse_waveform_augs(augmentations_file)
+        self.spectrogram_augs = self.parse_spectrogram_augs(augmentations_file)
         self.sample_rate = sample_rate
+        self.extractor = extractor
         self.spectrogram_prob = 0.2
-    
+
+
     def __call__(self, entry):
-        spectgrms = entry["spectograms"]
-        # Convert spectrogram back to torch on cuda
-        spectgrms = torch.from_numpy(spectgrms).to("cuda")
-        augmented_spectgrms = self.augmentations(spectgrms)
+        signal = entry["waveform"]
+        augmented_signal = self.waveform_augs(signal, sample_rate=self.sample_rate)
 
         # If signal was not augmented, return None
         # Signal is a numpy array, so we can check if it is equal to the original signal
-        if np.array_equal(spectgrms, augmented_spectgrms):
+        if np.array_equal(signal, augmented_signal):
             return None
+
+        # COnvert waveform to torch
+        augmented_signal = torch.from_numpy(augmented_signal).to("cuda")
+
+        # Convert the waveform to spectrogram
+        spectgrms = self.extractor(augmented_signal)
+
+        augmented_spectgrms = self.spectrogram_augs(spectgrms)
 
         # If signal was augmented, return a new entry
         new_entry = deepcopy(entry)
+        new_entry["waveform"] = augmented_signal
+        new_entry["spectograms"] = augmented_spectgrms.cpu().numpy()
+        
 
-        # Convert the spectrogram to numpy cpu
-        augmented_spectgrms = augmented_spectgrms.cpu().numpy()
-        new_entry["spectograms"] = augmented_spectgrms
         return new_entry
 
-    def parse_augmentations(self, augmentations_file: str) -> T.Compose:
+    def parse_waveform_augs(self, augmentations_file: str) -> Compose:
+        with open(augmentations_file, "r") as f:
+            config = json.load(f)
+        
+            # Define a list of available audio augmentations
+            waveform_augs = {
+                "PitchShift": PitchShiftAug,
+                "AddGaussianNoise": AddGaussianNoise,
+                "AirAbsorption": AirAbsorption,
+                "Gain": Gain,
+                "LowPassFilter": LowPassFilter,
+                "ClippingDistortion": ClippingDistortion,
+            }
+
+            # Create a list of augmentation functions based on the configuration
+            audio_augmentations = []
+            for aug_config in config["waveform_augmentations"]:
+                aug_name = aug_config["name"]
+                aug_params = aug_config["params"]
+                
+                if aug_name in waveform_augs:
+                    augmentation_fn = waveform_augs[aug_name](**aug_params)
+                    audio_augmentations.append(augmentation_fn)
+                else:
+                    print(f"Warning: Unknown audio augmentation '{aug_name}'")
+        # Create an augmentation pipeline
+        return Compose(audio_augmentations)
+    
+    
+    def parse_spectrogram_augs(self, augmentations_file: str) -> T.Compose:
         with open(augmentations_file, "r") as f:
             config = json.load(f)
 
@@ -307,71 +348,6 @@ class SpectrogramAugmenter:
 
         # Create an augmentation pipeline
         return T.Compose(spec_augmentations)
-    
-
-class WaveformAugmenter:
-    """Augmenter is responsible for applying data augmentation"""
-
-    def __init__(self, augmentations_file: str, extractor,  sample_rate: int):
-        self.augmentations = self.parse_augmentations(augmentations_file)
-        self.sample_rate = sample_rate
-        self.extractor = extractor
-
-    def __call__(self, entry):
-        signal = entry["waveform"]
-        augmented_signal = self.augmentations(signal, sample_rate=self.sample_rate)
-
-        # If signal was not augmented, return None
-        # Signal is a numpy array, so we can check if it is equal to the original signal
-        if np.array_equal(signal, augmented_signal):
-            return None
-
-        # COnvert waveform to torch
-        augmented_signal = torch.from_numpy(augmented_signal).to("cuda")
-
-        # Convert the waveform to spectrogram
-        spectgrms = self.extractor(augmented_signal).cpu()
-
-
-        # If signal was augmented, return a new entry
-        new_entry = deepcopy(entry)
-        new_entry["waveform"] = augmented_signal
-        new_entry["spectograms"] = spectgrms
-        
-
-        return new_entry
-
-    def parse_augmentations(self, augmentations_file: str) -> Compose:
-        with open(augmentations_file, "r") as f:
-            config = json.load(f)
-        
-            # Define a list of available audio augmentations
-            waveform_augs = {
-                "PitchShift": PitchShiftAug,
-                "AddGaussianNoise": AddGaussianNoise,
-                "AirAbsorption": AirAbsorption,
-                "Gain": Gain,
-                "LowPassFilter": LowPassFilter,
-                "ClippingDistortion": ClippingDistortion,
-            }
-
-            # Create a list of augmentation functions based on the configuration
-            audio_augmentations = []
-            for aug_config in config["waveform_augmentations"]:
-                aug_name = aug_config["name"]
-                aug_params = aug_config["params"]
-                
-                if aug_name in waveform_augs:
-                    augmentation_fn = waveform_augs[aug_name](**aug_params)
-                    audio_augmentations.append(augmentation_fn)
-                else:
-                    print(f"Warning: Unknown audio augmentation '{aug_name}'")
-            
-
-        
-        # Create an augmentation pipeline
-        return Compose(audio_augmentations)
-
 
 
 
@@ -483,8 +459,7 @@ def preprocess(
     # augmentations = Compose(
     #     [PitchShiftAug(p=0.2), AddGaussianNoise(p=0.2), AirAbsorption(p=0.2)]
     # )
-    waveform_augmenter = WaveformAugmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
-    spectrogram_augmenter = SpectrogramAugmenter(augmentations_file, sample_rate)
+    augmenter = Augmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
 
     for j, dataset_split in enumerate(audio_splits):
         values = []
@@ -507,12 +482,10 @@ def preprocess(
 
                 values.append(entry)
                 if augment :
-                    augmented_entry = waveform_augmenter(entry)
+                    augmented_entry = augmenter(entry)
                     if augmented_entry is not None:
                         augmented_values.append(augmented_entry)
-                    augmented_entry = spectrogram_augmenter(entry)
-                    if augmented_entry is not None:
-                        augmented_values.append(augmented_entry)
+
                 pbar.update(1)
 
         if augment:
