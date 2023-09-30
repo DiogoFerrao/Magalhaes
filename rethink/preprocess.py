@@ -268,10 +268,12 @@ class Augmenter:
         signal = entry["waveform"]
         augmented_signal = self.waveform_augs(signal, sample_rate=self.sample_rate)
 
+        augmented = False
+
         # If signal was not augmented, return None
         # Signal is a numpy array, so we can check if it is equal to the original signal
-        if np.array_equal(signal, augmented_signal):
-            return None
+        if not np.array_equal(signal, augmented_signal):
+            augmented = True
 
         # COnvert waveform to torch
         augmented_signal = torch.from_numpy(augmented_signal).to("cuda")
@@ -279,12 +281,18 @@ class Augmenter:
         # Convert the waveform to spectrogram
         spectgrms = self.extractor(augmented_signal)
 
+        # Apply spectrogram augmentations
         augmented_spectgrms = self.spectrogram_augs(spectgrms)
 
-        # If signal was augmented, return a new entry
+        converted_spectgrms = augmented_spectgrms.cpu().numpy()
+
+        if np.array_equal(converted_spectgrms, spectgrms.cpu().numpy()) and not augmented:
+            return None
+
         new_entry = deepcopy(entry)
-        new_entry["waveform"] = augmented_signal
-        new_entry["spectograms"] = augmented_spectgrms.cpu().numpy()
+        new_entry["waveform"] = augmented_signal.cpu().numpy()
+        new_entry["spectograms"] = converted_spectgrms
+        new_entry["augmented"] = True
 
         return new_entry
 
@@ -351,9 +359,11 @@ class Packager:
         self.save_waveform = save_waveform
         self.save_spectogram = save_spectogram
 
-    def package(self, signal, spectgrms, labels, dataset):
+    def package(self, filename, signal, spectgrms, labels, dataset):
         entry = {}
 
+        entry["augmented"] = False
+        entry["filename"] = filename
         entry["waveform"] = signal.cpu().numpy()
         entry["spectograms"] = np.array(spectgrms)
         entry["dataset"] = dataset
@@ -361,22 +371,16 @@ class Packager:
         return entry
 
     def dump(self, output_path, output_name, data):
-        # If save_waveform is False, remove waveform from data
-        # if not self.save_waveform:
-        #     for entry in data:
-        #         del entry["waveform"]
+        list_of_dicts = data
 
-        # if not self.save_spectogram:
-        #     for entry in data:
-        #         del entry["spectograms"]
+        if not self.save_waveform:
+            key_to_remove = "waveform"
 
-        key_to_remove = "waveform"
-
-        # Using list comprehensions to remove the specified key from all dictionaries
-        list_of_dicts = [
-            {k: v for k, v in dictionary.items() if k != key_to_remove}
-            for dictionary in data
-        ]
+            # Using list comprehensions to remove the specified key from all dictionaries
+            list_of_dicts = [
+                {k: v for k, v in dictionary.items() if k != key_to_remove}
+                for dictionary in data
+            ]
 
         with open(os.path.join(output_path, output_name), "wb") as handler:
             pkl.dump(list_of_dicts, handler, protocol=pkl.HIGHEST_PROTOCOL)
@@ -386,18 +390,18 @@ class Preprocessor:
     """Preprocessor is responsible for preprocessing the audio files"""
 
     def __init__(self, loader, trimmer, padder, extractor, packager):
-        self.loader = loader
-        self.trimmer = trimmer
-        self.padder = padder
+        self.loader : Loader = loader
+        self.trimmer : Trimmer = trimmer
+        self.padder : Padder = padder
         self.extractor = extractor
-        self.packager = packager
+        self.packager : Packager = packager
 
     def preprocess(self, path, labels, dataset):
         signal = self.loader(path)
         signal = self.trimmer(signal)
         signal = self.padder(signal)
         spectgrms = self.extractor(signal).cpu()
-        return self.packager.package(signal, spectgrms, labels, dataset)
+        return self.packager.package(path, signal, spectgrms, labels, dataset)
 
 
 def preprocess(

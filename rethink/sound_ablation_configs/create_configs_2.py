@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
                     # Create a new configuration JSON file
             with open(
-                    f"{experiment_name_prefix}_{idx + 1}_config.json", "w"
+                    f"{experiment_name_prefix}_{dir_name}_config.json", "w"
             ) as config_file:
                 json.dump(new_config, config_file, indent=4)
 
