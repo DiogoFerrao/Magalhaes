@@ -29,7 +29,9 @@ from audiomentations import (
     AirAbsorption,
     Gain,
     LowPassFilter,
-    ClippingDistortion
+    ClippingDistortion,
+    AddBackgroundNoise,
+    TimeStretch
 )
 from tqdm import tqdm
 
@@ -253,11 +255,46 @@ class AugmentationProbWrapper:
             return self.augmentation_fn(signal)
         return signal
 
+class Oversampler:
+    def __init__(self, p: float):
+        self.probability = p
+
+    def __call__(self, waveform, sample_rate):
+        if np.random.rand() < self.probability:
+            return waveform
+        return None
+
+class BackgroundNoise:
+    def __init__(self, p: float, min_snr_db: float, max_snr_db: float):
+        bg_noise_arr = [
+            "/media/magalhaes/sound/background_noise/2022-10-17 16_50_45.670123+00_00.wav",
+            "/media/magalhaes/sound/background_noise/4-164206-A-10.wav",
+            "/media/magalhaes/sound/background_noise/2-82367-A-10.wav",
+            "/media/magalhaes/sound/background_noise/1-17367-A-10.wav",
+            "/media/magalhaes/sound/background_noise/5-157204-A-16.wav",
+            "/media/magalhaes/sound/background_noise/4-163606-A-16.wav",
+            "/media/magalhaes/sound/background_noise/3-134699-C-16.wav",
+            "/media/magalhaes/sound/background_noise/2-109371-C-16.wav",
+            "/media/magalhaes/sound/background_noise/2-109374-A-16.wav",
+            "/media/magalhaes/sound/background_noise/1-69760-A-16.wav",
+            "/media/magalhaes/sound/background_noise/1-51035-A-16.wav",
+            "/media/magalhaes/sound/background_noise/1-137296-A-16.wav",
+            "/media/magalhaes/sound/background_noise/1-47709-A-16.wav",
+        ]
+        self.bg_noise = AddBackgroundNoise(
+            bg_noise_arr, p=0.2, lru_cache_size=len(bg_noise_arr), min_snr_in_db=min_snr_db, max_snr_in_db=max_snr_db
+        )
+
+
+    def __call__(self, waveform, sample_rate):
+        waveform = self.bg_noise(waveform, sample_rate)
+        return waveform
 
 class Augmenter:
     """Augmenter is responsible for applying data augmentation"""
 
     def __init__(self, augmentations_file: str, extractor, sample_rate: int):
+        self.oversampling = self.parse_oversampling(augmentations_file)
         self.waveform_augs = self.parse_waveform_augs(augmentations_file)
         self.spectrogram_augs = self.parse_spectrogram_augs(augmentations_file)
         self.sample_rate = sample_rate
@@ -266,14 +303,18 @@ class Augmenter:
 
     def __call__(self, entry):
         signal = entry["waveform"]
-        augmented_signal = self.waveform_augs(signal, sample_rate=self.sample_rate)
-
         augmented = False
 
-        # If signal was not augmented, return None
-        # Signal is a numpy array, so we can check if it is equal to the original signal
-        if not np.array_equal(signal, augmented_signal):
+        # If oversampling is not an empty list, apply oversampling
+        if self.oversampling:
+            augmented_signal = self.oversampling(signal, sample_rate=self.sample_rate)
             augmented = True
+            if augmented_signal is None:
+                return None
+        else:
+            augmented_signal = self.waveform_augs(signal, sample_rate=self.sample_rate)
+            if not np.array_equal(signal, augmented_signal):
+                augmented = True
 
         # COnvert waveform to torch
         augmented_signal = torch.from_numpy(augmented_signal).to("cuda")
@@ -295,6 +336,27 @@ class Augmenter:
         new_entry["augmented"] = True
 
         return new_entry
+    
+    def parse_oversampling(self, augmentations_file: str) -> Compose:
+        with open(augmentations_file, "r") as f:
+            config = json.load(f)
+
+            # Define a list of available audio augmentations
+            oversampling = {
+                "Oversampler": Oversampler,
+            }
+
+            # Create a list of augmentation functions based on the configuration
+            oversampling_fn = []
+            for aug_config in config["waveform_augmentations"]:
+                aug_name = aug_config["name"]
+                aug_params = aug_config["params"]
+
+                if aug_name in oversampling:
+                    augmentation_fn = oversampling[aug_name](**aug_params)
+                    oversampling_fn.append(augmentation_fn)
+        # Create an augmentation pipeline
+        return Compose(oversampling_fn)
 
     def parse_waveform_augs(self, augmentations_file: str) -> Compose:
         with open(augmentations_file, "r") as f:
@@ -308,6 +370,8 @@ class Augmenter:
                 "Gain": Gain,
                 "LowPassFilter": LowPassFilter,
                 "ClippingDistortion": ClippingDistortion,
+                "BackgroundNoise": BackgroundNoise,
+                "TimeStretch": TimeStretch,
             }
 
             # Create a list of augmentation functions based on the configuration

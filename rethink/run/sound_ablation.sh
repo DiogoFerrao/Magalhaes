@@ -6,8 +6,12 @@ config_dir="sound_ablation_configs"
 # List of configuration files
 config_files=($config_dir/*.json)
 
+# Get the total number of configuration files
+total_configs=${#config_files[@]}
+
 # Loop through each configuration file
-for config_file in "${config_files[@]}"; do
+for ((i = 0; i < total_configs; i++)); do
+    config_file="${config_files[$i]}"
     echo "Training and Testing with $config_file"
 
     # Training command
@@ -20,7 +24,11 @@ for config_file in "${config_files[@]}"; do
     # Testing command
     python evaluate.py --config_path "$config_file"
 
-    # Sleep for 10 minutes before the next run
-    echo "Waiting for 10 minutes before the next run..."
-    sleep 600
+    # Check if it's not the last iteration, then sleep for 5 minutes
+    if [ $i -lt $((total_configs - 1)) ]; then
+        echo "Waiting for 5 minutes before the next run..."
+        sleep 300
+    else
+        echo "No need to wait for the last iteration."
+    fi
 done
