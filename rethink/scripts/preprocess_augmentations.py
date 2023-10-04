@@ -17,10 +17,12 @@ if __name__ == "__main__":
             print(f"Preprocessing with {preprocessing_config}")
 
             temp = preprocessing_config.rstrip(".json").split("_")
+            transform_name = "_".join(temp[3:])
+
 
             output_dir = os.path.join(
                 "/media/magalhaes/sound/spectograms",
-                temp[2] + temp[3],
+                transform_name,
             )
             print(output_dir)
             # If output dir exists and is not empty, skip
