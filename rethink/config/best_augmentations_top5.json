@@ -1,0 +1,29 @@
+{
+    "waveform": {
+        "AddGaussianNoise": [{
+            "p": 0.2,
+            "min_amplitude": 0.002,
+            "max_amplitude": 0.020
+        }],
+        "AirAbsorption": [{
+            "p": 0.2,
+            "min_distance": 25.0,
+            "max_distance": 65.0
+        }],
+        "ClippingDistortion": [{
+            "p": 0.2,
+            "min_percentile_threshold": 0.0,
+            "max_percentile_threshold": 30.0
+        }],
+        "Gain": [{
+            "p": 0.2,
+            "min_gain_db": -0.5,
+            "max_gain_db": 0.5
+        }]
+    },
+    "spectrogram": {
+        "TimeMasking": [{
+            "time_mask_param": 20
+        }]
+    }
+}

@@ -1,0 +1,68 @@
+{
+    "waveform": {
+        "PitchShift": [{
+            "p": 0.2,
+            "min_semitones": -2.0,
+            "max_semitones": 2.0
+        }],
+        "AddGaussianNoise": [{
+            "p": 0.2,
+            "min_amplitude": 0.002,
+            "max_amplitude": 0.020
+        }],
+        "AirAbsorption": [{
+            "p": 0.2,
+            "min_distance": 25.0,
+            "max_distance": 65.0
+        }],
+        "ClippingDistortion": [{
+            "p": 0.2,
+            "min_percentile_threshold": 0.0,
+            "max_percentile_threshold": 30.0
+        }],
+        "Gain": [{
+            "p": 0.2,
+            "min_gain_db": -0.5,
+            "max_gain_db": 0.5
+        }],
+        "LowPassFilter": [{
+            "p": 0.2,
+            "min_cutoff_freq": 3000.0,
+            "max_cutoff_freq": 12000.0
+        }]
+    },
+    "spectrogram": {
+        "Roll": [
+            {
+                "shift_dims": [
+                    0,
+                    0,
+                    1
+                ],
+                "dims": [
+                    0,
+                    1,
+                    2
+                ],
+                "min": 0,
+                "max": 250
+            }
+        ],
+        "TimeMasking": [{
+            "time_mask_param": 20
+        }],
+        "FreqMasking": [{
+            "freq_mask_param": 20
+        }],
+        "BackgroundNoise": [{
+            "p": 0.2,
+            "min_snr_db": 9.0,
+            "max_snr_db": 20.0
+        }],
+        "TimeStretch": [{
+            "p": 0.2,
+            "min_rate": 0.95,
+            "max_rate": 1.05
+        }]
+    }
+}
