@@ -3,8 +3,9 @@ import argparse
 import os
 
 def get_dir_name(filename: str):
-    temp = filename.rstrip(".json").split("_")
-    return temp[2] + temp[3]
+    temp = preprocessing_config.split("_")
+    transform_name = "_".join(temp[2:])
+    return transform_name
 
 if __name__ == "__main__":
     # Receive user input from the command line
@@ -107,28 +108,33 @@ if __name__ == "__main__":
 
     dataset_csv_name = args.dataset_csv.split("/")[-1].rstrip(".csv")
 
+    files = os.listdir(args.preprocessing_configs_dir)
+
+    filenames_without_extension = [os.path.splitext(file)[0] for file in files]
+
+
     idx = 0
     # For every file in the preprocessing configs directory
-    for preprocessing_config in os.listdir(args.preprocessing_configs_dir):
-        
-        # If the file is a JSON file
-        if preprocessing_config.endswith(".json"):
-            dir_name = get_dir_name(preprocessing_config)
-            print(dir_name)
+    for preprocessing_config in filenames_without_extension:
 
-            new_config = user_config.copy()
-            new_config["split_base"] = new_config["data_dir"] +"/"+ dir_name + "/" + dataset_csv_name
-            new_config["test_split"] = new_config["split_base"] + "_split2.pkl"
+        dir_name = get_dir_name(preprocessing_config)
+        print(dir_name)
 
-            new_config["exp_name"] = f"{experiment_name_prefix}_{dir_name}"
-            new_config["checkpoint"] = (
-                f"{new_config['checkpoint_dir']}/{new_config['exp_name']}/model_best_1.pth"
-            )
+        new_config = user_config.copy()
+        new_config["split_base"] = new_config["data_dir"] +"/"+ dir_name + "/" + dataset_csv_name
+        new_config["test_split"] = new_config["split_base"] + "_split2.pkl"
 
-                    # Create a new configuration JSON file
-            with open(
-                    f"{experiment_name_prefix}_{dir_name}_config.json", "w"
-            ) as config_file:
-                json.dump(new_config, config_file, indent=4)
+        new_config["exp_name"] = f"{experiment_name_prefix}_{dir_name}"
+        new_config["checkpoint"] = (
+            f"{new_config['checkpoint_dir']}/{new_config['exp_name']}/model_best_1.pth"
+        )
 
-            idx += 1
+        # Create a new configuration JSON file
+        with open(
+                f"{experiment_name_prefix}_{dir_name}_config.json", "w"
+        ) as config_file:
+            json.dump(new_config, config_file, indent=4)
+
+        idx += 1
+    
+    print(f"Generated {idx} configuration files.")
