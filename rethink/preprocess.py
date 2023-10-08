@@ -206,7 +206,7 @@ class PitchShift:
         self.device = device
 
     def __call__(self, waveform):
-        pitch_shift = torch.randint(-2, 2 + 1, (1,)).item()
+        pitch_shift = int(torch.randint(-2, 2 + 1, (1,)).item())
         return (
             torchaudio.functional.pitch_shift(
                 waveform, sample_rate=self.sample_rate, n_steps=pitch_shift
@@ -337,7 +337,7 @@ class Augmenter:
 
         return new_entry
     
-    def parse_oversampling(self, augmentations_file: str) -> Compose:
+    def parse_oversampling(self, augmentations_file: str):
         with open(augmentations_file, "r") as f:
             config = json.load(f)
 
@@ -354,8 +354,12 @@ class Augmenter:
 
                 if aug_name in oversampling:
                     augmentation_fn = oversampling[aug_name](**aug_params)
+                    print("Applying augmentation", augmentation_fn)
+                    print("With params", aug_params)
                     oversampling_fn.append(augmentation_fn)
         # Create an augmentation pipeline
+        if len(oversampling_fn) == 0:
+            return None
         return Compose(oversampling_fn)
 
     def parse_waveform_augs(self, augmentations_file: str) -> Compose:
@@ -382,6 +386,8 @@ class Augmenter:
 
                 if aug_name in waveform_augs:
                     augmentation_fn = waveform_augs[aug_name](**aug_params)
+                    print("Applying augmentation", augmentation_fn)
+                    print("With params", aug_params)
                     audio_augmentations.append(augmentation_fn)
                 else:
                     print(f"Warning: Unknown audio augmentation '{aug_name}'")
@@ -407,6 +413,8 @@ class Augmenter:
 
                 if aug_name in spec_augs:
                     augmentation_fn = spec_augs[aug_name](**aug_params)
+                    print("Applying augmentation", augmentation_fn)
+                    print("With params", aug_params)
                     augmentation_fn = AugmentationProbWrapper(augmentation_fn, 0.2)
                     spec_augmentations.append(augmentation_fn)
                 else:
