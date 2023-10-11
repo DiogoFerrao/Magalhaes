@@ -106,6 +106,9 @@ if __name__ == "__main__":
     
     experiment_name_prefix = "Precomputed_Spec_MData_Top7"
 
+    # consider changing the prefix based on the name of the config file
+    # e.g. Precomputed_Spec_MData_Top7_1
+
     dataset_csv_name = args.dataset_csv.split("/")[-1].rstrip(".csv")
 
     files = os.listdir(args.preprocessing_configs_dir)

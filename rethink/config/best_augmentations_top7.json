@@ -37,7 +37,7 @@
         ],
         "FreqMasking": [
             {
-                "time_mask_param": 20
+                "freq_mask_param": 20
             }
         ]
 

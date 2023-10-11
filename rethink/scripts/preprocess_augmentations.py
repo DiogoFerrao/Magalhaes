@@ -27,6 +27,10 @@ def worker(preprocessing_config, csv_file, args):
         device="cuda:0"
     )
 
+    # After preprocessing, append the name of the augmentations_file to a log file
+    with open("preprocessed_augmentations.log", "a") as f:
+        f.write(preprocessing_config + "\n")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--configs_dir", type=str, default="./preprocessing_configs")
