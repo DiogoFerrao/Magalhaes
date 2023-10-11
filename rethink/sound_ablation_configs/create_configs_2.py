@@ -104,7 +104,7 @@ if __name__ == "__main__":
         "waveform_transforms": [],
     }
     
-    experiment_name_prefix = "Precomputed_Spec_MData"
+    experiment_name_prefix = "Precomputed_Spec_MData_Top7"
 
     dataset_csv_name = args.dataset_csv.split("/")[-1].rstrip(".csv")
 

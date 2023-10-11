@@ -1,0 +1,45 @@
+{
+    "waveform": {
+        "BackgroundNoise": [
+            {
+                "p": 0.2,
+                "min_snr_db": 12.0,
+                "max_snr_db": 15.0
+            }
+        ],
+        "AirAbsorption": [
+            {
+                "p": 0.2,
+                "min_distance": 25.0,
+                "max_distance": 65.0
+            }
+        ],
+        "ClippingDistortion": [
+            {
+                "p": 0.2,
+                "min_percentile_threshold": 0.0,
+                "max_percentile_threshold": 30.0
+            }
+        ],
+        "TimeStretch": [
+            {
+                "p": 0.2,
+                "min_rate": 0.9,
+                "max_rate": 1.1
+            }
+        ]
+    },
+    "spectrogram": {
+        "TimeMasking": [
+            {
+                "time_mask_param": 60
+            }
+        ],
+        "FreqMasking": [
+            {
+                "time_mask_param": 20
+            }
+        ]
+
+    }
+}

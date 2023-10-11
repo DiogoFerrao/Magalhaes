@@ -24,10 +24,10 @@ for ((i = 0; i < total_configs; i++)); do
     # Testing command
     python evaluate.py --config_path "$config_file"
 
-    # Check if it's not the last iteration, then sleep for 5 minutes
+    # Check if it's not the last iteration, then sleep for 1 minute
     if [ $i -lt $((total_configs - 1)) ]; then
-        echo "Waiting for 5 minutes before the next run..."
-        sleep 300
+        echo "Waiting for 1 minutes before the next run..."
+        sleep 60
     else
         echo "No need to wait for the last iteration."
     fi
