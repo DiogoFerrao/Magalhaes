@@ -1,4 +1,5 @@
 {
+    "probability" : 0.2,
     "waveform": {
         "BackgroundNoise": [
             {
@@ -30,13 +31,10 @@
         ]
     },
     "spectrogram": {
-        "TimeMasking": [
+        "SpecAugment": [
             {
-                "time_mask_param": 60
-            }
-        ],
-        "FreqMasking": [
-            {
+                "p": 0.2,
+                "time_mask_param": 60,
                 "freq_mask_param": 20
             }
         ]

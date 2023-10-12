@@ -7,7 +7,12 @@ import itertools
 def create_augmentation_entry(name, params):
     return {"name": name, "params": params}
 
+def calculate_individual_probability(X, probability_at_least_one):
+    p = 1 - (1 - probability_at_least_one) ** (1 / X)
+    return p
+
 def combine_all(transform_parameters: dict) -> dict:
+    global_probability = transform_parameters["probability"]
     spec_transforms = list(transform_parameters["spectrogram"].keys())
     waveform_transforms = list(transform_parameters["waveform"].keys())
 
@@ -28,11 +33,14 @@ def combine_all(transform_parameters: dict) -> dict:
         for i, combination in enumerate(augmentation_combinations):
             augmentation_config = deepcopy(base_config)
             transform_name = "_".join(combination)  # Concatenate the names of augmentations
+            no_augs = len(combination)
+            p = calculate_individual_probability(no_augs, global_probability)
 
             for augmentation_name in combination:
                 param_variations = all_transforms[augmentation_name]
-
                 for params in param_variations:
+                    params = deepcopy(params)
+                    params["p"] = p
                     if augmentation_name in spec_transforms:
                         augmentation_config["spectrogram_augmentations"].append(
                             create_augmentation_entry(augmentation_name, params)

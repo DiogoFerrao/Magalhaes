@@ -255,6 +255,17 @@ class AugmentationProbWrapper:
             return self.augmentation_fn(signal)
         return signal
 
+class SpecAugment:
+    def __init__(self, p: float, time_mask_param: int, freq_mask_param: int):
+        self.p = p
+        self.time_mask_param = time_mask_param
+        self.freq_mask_param = freq_mask_param
+    
+    def __call__(self, spectgrm):
+        spectgrm = TA_T.TimeMasking(self.time_mask_param)(spectgrm)
+        spectgrm = TA_T.FrequencyMasking(self.freq_mask_param)(spectgrm)
+
+
 class Oversampler:
     def __init__(self, p: float):
         self.probability = p
@@ -403,6 +414,7 @@ class Augmenter:
                 "Roll": Roll,
                 "TimeMasking": TA_T.TimeMasking,
                 "FreqMasking": TA_T.FrequencyMasking,
+                "SpecAugment": SpecAugment,
             }
 
             # Create a list of augmentation functions based on the configuration
