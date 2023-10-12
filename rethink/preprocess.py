@@ -255,16 +255,18 @@ class AugmentationProbWrapper:
             return self.augmentation_fn(signal)
         return signal
 
-class SpecAugment:
+class SpecAugment(object):
     def __init__(self, p: float, time_mask_param: int, freq_mask_param: int):
         self.p = p
         self.time_mask_param = time_mask_param
         self.freq_mask_param = freq_mask_param
     
     def __call__(self, spectgrm):
-        spectgrm = TA_T.TimeMasking(self.time_mask_param)(spectgrm)
-        spectgrm = TA_T.FrequencyMasking(self.freq_mask_param)(spectgrm)
-
+        spec_aug = T.Compose([
+            TA_T.TimeMasking(self.time_mask_param),
+            TA_T.FrequencyMasking(self.freq_mask_param)
+        ])
+        return spec_aug(spectgrm)
 
 class Oversampler:
     def __init__(self, p: float):
@@ -411,9 +413,6 @@ class Augmenter:
 
             # Define a list of available audio augmentations
             spec_augs = {
-                "Roll": Roll,
-                "TimeMasking": TA_T.TimeMasking,
-                "FreqMasking": TA_T.FrequencyMasking,
                 "SpecAugment": SpecAugment,
             }
 
