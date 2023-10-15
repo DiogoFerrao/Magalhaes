@@ -245,15 +245,15 @@ class MinMaxNormalizer:
         return spectgrms
 
 
-class AugmentationProbWrapper:
-    def __init__(self, augmentation_fn, prob):
-        self.augmentation_fn = augmentation_fn
-        self.prob = prob
+# class AugmentationProbWrapper:
+#     def __init__(self, augmentation_fn, prob):
+#         self.augmentation_fn = augmentation_fn
+#         self.prob = prob
 
-    def __call__(self, signal):
-        if np.random.rand() < self.prob:
-            return self.augmentation_fn(signal)
-        return signal
+#     def __call__(self, signal):
+#         if np.random.rand() < self.prob:
+#             return self.augmentation_fn(signal)
+#         return signal
 
 class SpecAugment(object):
     def __init__(self, p: float, time_mask_param: int, freq_mask_param: int):
@@ -262,6 +262,9 @@ class SpecAugment(object):
         self.freq_mask_param = freq_mask_param
     
     def __call__(self, spectgrm):
+        # Only apply spec augment with probability p
+        if np.random.rand() > self.p:
+            return spectgrm        
         spec_aug = T.Compose([
             TA_T.TimeMasking(self.time_mask_param),
             TA_T.FrequencyMasking(self.freq_mask_param)
@@ -347,8 +350,6 @@ class Augmenter:
             if aug_name in definitions:
                 augmentation_fn = definitions[aug_name](**aug_params)
                 print(f"Applying augmentation {augmentation_fn} with params {aug_params}")
-                if aug_key == "spectrogram_augmentations":
-                    augmentation_fn = AugmentationProbWrapper(augmentation_fn, 0.2)
                 augmentations.append(augmentation_fn)
             else:
                 print(f"Unknown augmentation '{aug_name}' for key '{aug_key}'")
