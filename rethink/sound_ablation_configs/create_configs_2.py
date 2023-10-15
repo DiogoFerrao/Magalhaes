@@ -104,7 +104,7 @@ if __name__ == "__main__":
         "waveform_transforms": [],
     }
     
-    experiment_name_prefix = "Precomputed_Spec_MData_Top7"
+    experiment_name_prefix = "Precomputed_Spec_MData_P04"
 
     # consider changing the prefix based on the name of the config file
     # e.g. Precomputed_Spec_MData_Top7_1

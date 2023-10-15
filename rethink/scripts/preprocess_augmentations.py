@@ -15,9 +15,9 @@ def worker(preprocessing_config, csv_file, args):
     output_dir = os.path.join("/media/magalhaes/sound/spectograms", transform_name)
     print(output_dir)
 
-    # If output dir exists and is not empty, skip
-    if os.path.isdir(output_dir) and os.listdir(output_dir) and not args.replace:
-        print("Skipping...")
+    # If output dir exists and has 2 files, skip
+    if os.path.exists(output_dir) and len(os.listdir(output_dir)) == 2 and not args.replace:
+        print("Skipping")
         return
 
     preprocess(

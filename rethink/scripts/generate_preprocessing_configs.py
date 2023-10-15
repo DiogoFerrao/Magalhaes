@@ -11,7 +11,7 @@ def calculate_individual_probability(X, probability_at_least_one):
     p = 1 - (1 - probability_at_least_one) ** (1 / X)
     return p
 
-def combine_all(transform_parameters: dict) -> dict:
+def combine_all(transform_parameters: dict, exp_name: str) -> dict:
     global_probability = transform_parameters["probability"]
     spec_transforms = list(transform_parameters["spectrogram"].keys())
     waveform_transforms = list(transform_parameters["waveform"].keys())
@@ -50,7 +50,7 @@ def combine_all(transform_parameters: dict) -> dict:
                             create_augmentation_entry(augmentation_name, params)
                         )
 
-            export_name = f"augmentation_config_{transform_name}"
+            export_name = f"augmentation_config_{transform_name}_{exp_name}"
             augmentation_configs[export_name] = augmentation_config
 
     return augmentation_configs
@@ -107,6 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("--augmentations_file", type=str, default="./config/augmentations.json")
     parser.add_argument("--output_dir", type=str, default="./preprocessing_configs")
     parser.add_argument("--combination_mode", type=str, choices=["all", "one_each"], default="one_each")
+    parser.add_argument("--exp_name", type=str, default="")
 
     args = parser.parse_args()
 
@@ -125,7 +126,7 @@ if __name__ == "__main__":
     configs = {}
 
     if args.combination_mode == "all":
-        configs = combine_all(transformers_parameters)
+        configs = combine_all(transformers_parameters, args.exp_name)
         pass
     elif args.combination_mode == "one_each":
         configs = combine_one_each(transformers_parameters)
