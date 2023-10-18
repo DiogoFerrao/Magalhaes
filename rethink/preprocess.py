@@ -12,7 +12,7 @@ import os
 import pickle as pkl
 from copy import deepcopy
 from typing import List, Optional
-
+import sys
 import numpy as np
 import pandas as pd
 import torch
@@ -459,6 +459,7 @@ def preprocess(
         device="cuda",
         augment=False,
         augmentations_file="./config/augmentations.json",
+        class_imbalance_augment=False,
 ):
     audios_df = pd.read_csv(csv_file, skipinitialspace=True)
 
@@ -492,8 +493,20 @@ def preprocess(
     packager = Packager(save_waveform=waveform_only, save_spectogram=not waveform_only)
 
     preprocessor = Preprocessor(loader, trimmer, padder, extractor, packager)
+    
+    augmenters = {}
 
-    augmenter = Augmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
+    if class_imbalance_augment:
+        for class_name, class_id in label_to_id.items():
+            # strip augmentations_file extension
+            filename = os.path.splitext(augmentations_file)[0]
+            # append class name to filename
+            filename += "_" + class_name
+            # append extension
+            filename += ".json"
+            augmenters[class_id] = Augmenter(filename, extractor=extractor, sample_rate=sample_rate)
+    else:
+        augmenters["default"] = Augmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
 
     for j, dataset_split in enumerate(audio_splits):
         values = []
@@ -513,12 +526,30 @@ def preprocess(
                 entry = preprocessor.preprocess(
                     row["audio_filename"], labels, row["dataset"]
                 )
+                
+                
 
                 values.append(entry)
                 if augment:
+                    least_represented_label = min(entry["target"], key=entry["target"].count)
+                    if class_imbalance_augment:
+                        # get the least represented class_name in the entry
+                        # get the augmenter for that label
+                        print("Label: ",least_represented_label)
+                        augmenter = augmenters[least_represented_label]
+                    else:
+                        augmenter = augmenters["default"]
+
+
                     augmented_entries : Optional[List] = augmenter(entry)
                     if augmented_entries is not None:
                         augmented_values.extend(augmented_entries)
+                    
+                # Print memory usage of each variable
+                # print(f"Entry: {sys.getsizeof(entry)}")
+                # print(f"Values: {sys.getsizeof(values)}")
+                # print(f"Augmented values: {sys.getsizeof(augmented_values)}")
+                # print(f"Augmenters: {sys.getsizeof(augmenters)}")
 
                 pbar.update(1)
 

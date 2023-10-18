@@ -25,7 +25,8 @@ def worker(preprocessing_config, csv_file, args):
         augmentations_file=os.path.join(args.configs_dir, preprocessing_config + ".json"),
         output_dir=output_dir,
         augment=True,
-        device="cuda:0"
+        device="cuda:0",
+        class_imbalance_augment=args.class_imbalance_augment
     )
 
     # After preprocessing, append the name of the augmentations_file to a log file
@@ -38,6 +39,7 @@ def main():
     parser.add_argument("csv_file", type=str)
     parser.add_argument("--replace", action="store_true")
     parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--class_imbalance_augment", action="store_true")
     args = parser.parse_args()
 
     # List all files in the directory
@@ -67,6 +69,14 @@ def main():
 
     # If max_processes is 1, dont use multiprocessing
     if max_processes == 1:
+        if args.class_imbalance_augment:
+            #remove the trailing "_classname"
+            filenames_without_extension = ["_".join(filename.split("_")[:-1]) for filename in filenames_without_extension]
+            # Get unique filenames
+            filenames_without_extension = list(set(filenames_without_extension))
+            print(filenames_without_extension)
+            print(len(filenames_without_extension))
+
         for config in filenames_without_extension:
             worker(config, args.csv_file, args)
         return

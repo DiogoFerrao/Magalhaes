@@ -42,11 +42,37 @@ def calculate_probability(dataset_size, no_augs, no_augmented_entries, max_augs_
 def calculate_augs_per_signal(dataset_size, no_augmented_entries):
     return max(1, math.ceil(no_augmented_entries/dataset_size))
 
+def adjust_augmentation_probability(total_new_entries, class_counts, total_count, aggressiveness=1.0):
+    # Calculate class weights (inverse of class percentages)
+    # total_count = sum(class_counts.values())
+    class_weights = {cls: (total_count / count)**aggressiveness for cls, count in class_counts.items()}
+    
+    total_weight = sum(class_weights.values())
+    class_percentages = {cls: (weight / total_weight) * 100 for cls, weight in class_weights.items()}
 
 
+    new_entries_per_class = {cls: round(total_new_entries * (percentage / 100)) for cls, percentage in class_percentages.items()}
 
-def combine_all(transform_parameters: dict, exp_name: str, dataset_size: int, no_augmented_entries: int) -> dict:
-    # global_probability = transform_parameters["probability"]
+    sum_new_entries = sum(new_entries_per_class.values())
+    print("Sum: ", sum_new_entries)
+
+    if sum_new_entries > total_new_entries:
+        # Remove the difference from the class with the biggest percentage
+        biggest_percentage = max(class_percentages.values())
+        biggest_class = [cls for cls, percentage in class_percentages.items() if percentage == biggest_percentage][0]
+        new_entries_per_class[biggest_class] -= sum_new_entries - total_new_entries
+    elif sum_new_entries < total_new_entries:
+        # Add the difference to the class with the smallest percentage
+        smallest_percentage = min(class_percentages.values())
+        smallest_class = [cls for cls, percentage in class_percentages.items() if percentage == smallest_percentage][0]
+        new_entries_per_class[smallest_class] += total_new_entries - sum_new_entries
+
+    sum_new_entries = sum(new_entries_per_class.values())
+    print("Sum: ", sum_new_entries)
+    return new_entries_per_class
+
+def combine_all_aux(transform_parameters, exp_name, dataset_size, no_augmented_entries):
+        # global_probability = transform_parameters["probability"]
     spec_transforms = list(transform_parameters["spectrogram"].keys())
     waveform_transforms = list(transform_parameters["waveform"].keys())
 
@@ -91,6 +117,35 @@ def combine_all(transform_parameters: dict, exp_name: str, dataset_size: int, no
             augmentation_configs[export_name] = augmentation_config
 
     return augmentation_configs
+
+def combine_all(transform_parameters: dict, exp_name: str, dataset_size: int, no_augmented_entries: int, class_imbalance_augment : bool, aggressiveness: float = 1.0) -> dict:
+
+    if class_imbalance_augment:
+        # Create an augmentation config for each class, where the name is the same + class_name.json
+        # For each class, calculate the number of augmented entries
+
+        # Read class counts from config/class_counts.json
+        with open("./config/class_counts.json") as f:
+            class_counts = json.load(f)
+        
+        # Calculate the number of augmented entries per class
+        class_augmentation_distribution = adjust_augmentation_probability(no_augmented_entries, class_counts, dataset_size, aggressiveness)
+        print("class_augmentation_distribution", class_augmentation_distribution)
+
+        # Create a separate config for each class
+        augmentation_configs = {}
+        for cls, no_augmented_entries in class_augmentation_distribution.items():
+            augmentation_configs[cls] = combine_all_aux(transform_parameters, f"{exp_name}_{cls}", class_counts[cls], no_augmented_entries)
+
+        #Flatten the dict, ignore the first jeys
+        augmentation_configs = {k: v for d in augmentation_configs.values() for k, v in d.items()}
+        
+    else:
+        augmentation_configs = combine_all_aux(transform_parameters, exp_name, dataset_size, no_augmented_entries)
+    
+    return augmentation_configs
+
+
 
 
 
@@ -147,7 +202,8 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", type=str, default="")
     parser.add_argument("--dataset_size", type=int, default=11394)
     parser.add_argument("--no_augmented_entries", type=int, required=True)
-
+    parser.add_argument("--class_imbalance_augment", action="store_true")
+    parser.add_argument("--aggressiveness", type=float, default=1.0)
 
     args = parser.parse_args()
 
@@ -166,7 +222,7 @@ if __name__ == "__main__":
     configs = {}
 
     if args.combination_mode == "all":
-        configs = combine_all(transformers_parameters, args.exp_name, args.dataset_size, args.no_augmented_entries)
+        configs = combine_all(transformers_parameters, args.exp_name, args.dataset_size, args.no_augmented_entries, args.class_imbalance_augment, args.aggressiveness)
         pass
     elif args.combination_mode == "one_each":
         # TODO: This no longer works
