@@ -1,0 +1,22 @@
+{
+    "augs_per_signal": 12,
+    "waveform_augmentations": [
+        {
+            "name": "BackgroundNoise",
+            "params": {
+                "p": 0.8229532102826049,
+                "min_snr_db": 12.0,
+                "max_snr_db": 15.0
+            }
+        },
+        {
+            "name": "AirAbsorption",
+            "params": {
+                "p": 0.8229532102826049,
+                "min_distance": 25.0,
+                "max_distance": 65.0
+            }
+        }
+    ],
+    "spectrogram_augmentations": []
+}
