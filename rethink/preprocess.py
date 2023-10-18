@@ -319,7 +319,6 @@ class Augmenter:
         with open(augmentations_file, "r") as f:
             self.config = json.load(f)
 
-        # self.oversampling = self.parse_augmentation("waveform_augmentations", self.get_waveform_aug_definitions())
         self.waveform_augs = self.parse_augmentation("waveform_augmentations", self.get_waveform_aug_definitions())
         self.spectrogram_augs = self.parse_augmentation("spectrogram_augmentations", self.get_spectrogram_aug_definitions())
         
@@ -360,15 +359,6 @@ class Augmenter:
             return T.Compose(augmentations)
 
     def __call__(self, entry) -> Optional[List]:
-
-
-        # If oversampling is not an empty list, apply oversampling
-        # if self.oversampling:
-        #     augmented_signal = self.oversampling(signal, sample_rate=self.sample_rate)
-        #     augmented = True
-        #     if augmented_signal is None:
-        #         return None
-        # else:
 
         augs_per_signal = int(self.config["augs_per_signal"])
 
@@ -503,10 +493,6 @@ def preprocess(
 
     preprocessor = Preprocessor(loader, trimmer, padder, extractor, packager)
 
-    # Augment data, TODO dont hardcode this
-    # augmentations = Compose(
-    #     [PitchShiftAug(p=0.2), AddGaussianNoise(p=0.2), AirAbsorption(p=0.2)]
-    # )
     augmenter = Augmenter(augmentations_file, extractor=extractor, sample_rate=sample_rate)
 
     for j, dataset_split in enumerate(audio_splits):
