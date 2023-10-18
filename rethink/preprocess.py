@@ -496,6 +496,12 @@ def preprocess(
     
     augmenters = {}
 
+    # List of all class columns
+    class_columns = list(label_to_id.keys())
+
+    # Calculate the sum for each class column
+    class_counts = audios_df[class_columns].sum().to_dict()
+
     if class_imbalance_augment:
         for class_name, class_id in label_to_id.items():
             # strip augmentations_file extension
@@ -527,15 +533,28 @@ def preprocess(
                     row["audio_filename"], labels, row["dataset"]
                 )
                 
-                
 
                 values.append(entry)
                 if augment:
-                    least_represented_label = min(entry["target"], key=entry["target"].count)
+                    target = entry["target"]
+                    # 1. Extract classes present in the entry
+                    classes_present_in_entry = [class_columns[i] for i, label in enumerate(target) if label == 1]
+
+                    # 2. Get counts for these classes
+                    class_counts_for_entry = {cls: class_counts[cls] for cls in classes_present_in_entry}
+
+                    if len(class_counts_for_entry) == 0:
+                        continue
+
+                    # 3. Determine the least represented class
+                    least_represented_class = min(class_counts_for_entry, key=class_counts_for_entry.get)
+
+                    # 4. Get the label for the least represented class
+                    least_represented_label = label_to_id[least_represented_class]
+
                     if class_imbalance_augment:
                         # get the least represented class_name in the entry
                         # get the augmenter for that label
-                        print("Label: ",least_represented_label)
                         augmenter = augmenters[least_represented_label]
                     else:
                         augmenter = augmenters["default"]
@@ -557,6 +576,10 @@ def preprocess(
             print(f"Augmenting data, {len(augmented_values)} entries")
             # Combine augmented and non augmented data
             values.extend(augmented_values)
+
+            # Print the number of augmented entries per class
+            for class_name, class_id in label_to_id.items():
+                print(f"{class_name}: {sum([1 for entry in augmented_values if entry['target'][class_id] == 1])}")
 
             # Print original data size and augmented data size
             print(f"Original data size: {len(values) - len(augmented_values)}")
