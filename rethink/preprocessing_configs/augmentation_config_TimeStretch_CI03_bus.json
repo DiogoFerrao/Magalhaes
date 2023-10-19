@@ -1,0 +1,14 @@
+{
+    "augs_per_signal": 6,
+    "waveform_augmentations": [
+        {
+            "name": "TimeStretch",
+            "params": {
+                "p": 0.9623655913978495,
+                "min_rate": 0.9,
+                "max_rate": 1.1
+            }
+        }
+    ],
+    "spectrogram_augmentations": []
+}

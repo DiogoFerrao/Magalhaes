@@ -13,13 +13,23 @@ def get_dir_name(filename: str) -> str:
     transform_name = "_".join(temp[2:])
     return transform_name
 
-def create_configuration_files(user_config: Dict[str, Union[str, int, float]], preprocessing_configs_dir: str, output_dir: str, experiment_name_prefix: str) -> None:
+def create_configuration_files(user_config: Dict[str, Union[str, int, float]], preprocessing_configs_dir: str, output_dir: str, experiment_name_prefix: str, class_imbalance_augment: bool) -> None:
     """Create configuration files based on user input."""
     
     dataset_csv_name = user_config["dataset_csv"].split("/")[-1].rstrip(".csv") # type: ignore
 
     files = os.listdir(preprocessing_configs_dir)
     filenames_without_extension = [os.path.splitext(file)[0] for file in files]
+
+    if class_imbalance_augment:
+        unique_names = set()
+        for name in filenames_without_extension:
+            parts = name.split("_")
+            if len(parts) > 1:
+                name_without_last = "_".join(parts[:-1])
+                unique_names.add(name_without_last)
+        filenames_without_extension = list(unique_names)
+
 
     # Create the output directory if it doesn't exist
     if not os.path.exists(output_dir):
@@ -78,6 +88,7 @@ if __name__ == "__main__":
         help="Output directory for generated configuration files.",
         default="./sound_ablation_configs"
     )
+    parser.add_argument("--class_imbalance_augment", action="store_true", help="Whether to use class imbalance augmentation.")
 
     args = parser.parse_args()
     
@@ -87,4 +98,4 @@ if __name__ == "__main__":
     with open(args.user_config, 'r') as file:
         user_config = json.load(file)
 
-    create_configuration_files(user_config, args.preprocessing_configs_dir, args.output_dir, experiment_name_prefix)
+    create_configuration_files(user_config, args.preprocessing_configs_dir, args.output_dir, experiment_name_prefix, args.class_imbalance_augment)

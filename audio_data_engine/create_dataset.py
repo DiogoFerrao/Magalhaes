@@ -30,7 +30,7 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    train_test_ratio = [0.5, 0.5]
+    train_test_val_ratio = [0.4, 0.4, 0.2]
 
     finalDF = pd.DataFrame()
     for dataset_path in open(args.datasets).readlines():
@@ -42,7 +42,7 @@ def main():
         )
 
         df["split"] = np_rand.choice(
-            ["split1", "split2"], len(df.index), p=train_test_ratio
+            ["split1", "split2", "val"], len(df.index), p=train_test_val_ratio
         )
 
         finalDF = pd.concat((finalDF, df), ignore_index=True)

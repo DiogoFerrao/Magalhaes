@@ -535,7 +535,7 @@ def preprocess(
                 
 
                 values.append(entry)
-                if augment:
+                if augment and not splits_arr[j] == "val":
                     target = entry["target"]
                     # 1. Extract classes present in the entry
                     classes_present_in_entry = [class_columns[i] for i, label in enumerate(target) if label == 1]
@@ -618,6 +618,7 @@ if __name__ == "__main__":
     parser.add_argument("--augment", action="store_true", help="Wether to augment data")
     parser.add_argument("--augmentations_file", type=str, default="./config/augmentations.json",
                         help="Path to JSON file with augmentations")
+    parser.add_argument("--class_imbalance_augment", action="store_true", help="Wether to augment data based on class imbalance")
 
     args = parser.parse_args()
     # fmt: on
@@ -636,4 +637,5 @@ if __name__ == "__main__":
         device=args.device,
         augment=args.augment,
         augmentations_file=args.augmentations_file,
+        class_imbalance_augment=args.class_imbalance_augment
     )
