@@ -2,6 +2,10 @@
 
 **IMPORTANT** - the code assumes that the data is stored in the `/media/magalhaes` directory, please change the paths accordingly.
 
+Project collectively developed by the team at INESC-ID.
+
+Includes the work done for the thesis of Diogo Ferrão: Data Augmentation for Urban Environmental Sound Classification on Edge Devices.
+
 ## Setup
 
 ```
